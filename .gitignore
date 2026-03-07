@@ -1,0 +1,6 @@
+.agents/
+
+AGENTS.md
+
+.gocache/
+*.exe

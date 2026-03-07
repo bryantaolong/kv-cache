@@ -1,0 +1,10 @@
+set name alice-jones
+SET name alice
+SET age 20
+SET name alice
+SET age 20
+SET nametest x
+SET name alice
+SET age 20
+SET name "alice jones"
+SET msg "hello world"
