@@ -168,15 +168,22 @@ func isWriteCommand(cmd string) bool {
 // execute 执行单个命令
 func (c *CLI) execute(cmd string, parts []string) error {
 	switch cmd {
+	// 系统命令
 	case "QUIT", "EXIT":
 		fmt.Fprintln(c.writer, "Bye!")
 		return ErrQuit
+	case "CLEAR":
+		return c.handleClear(parts)
 	case "HELP":
 		c.printHelp()
+
+	// String 命令
 	case "SET":
 		return c.handleSet(parts)
 	case "GET":
 		return c.handleGet(parts)
+
+	// 通用键命令
 	case "DEL":
 		return c.handleDel(parts)
 	case "KEYS":
@@ -187,6 +194,8 @@ func (c *CLI) execute(cmd string, parts []string) error {
 		return c.handleExpire(parts)
 	case "TTL":
 		return c.handleTTL(parts)
+
+	// Hash 命令
 	case "HSET":
 		return c.handleHSet(parts)
 	case "HGET":
@@ -195,6 +204,8 @@ func (c *CLI) execute(cmd string, parts []string) error {
 		return c.handleHGetAll(parts)
 	case "HDEL":
 		return c.handleHDel(parts)
+
+	// List 命令
 	case "LPUSH":
 		return c.handleLPush(parts)
 	case "RPUSH":
@@ -207,18 +218,23 @@ func (c *CLI) execute(cmd string, parts []string) error {
 		return c.handleLRange(parts)
 	case "LLEN":
 		return c.handleLLen(parts)
+
+	// Set 命令
 	case "SADD":
 		return c.handleSAdd(parts)
 	case "SMEMBERS":
 		return c.handleSMembers(parts)
 	case "SCARD":
 		return c.handleSCard(parts)
+
+	// ZSet 命令
 	case "ZADD":
 		return c.handleZAdd(parts)
 	case "ZRANGE":
 		return c.handleZRange(parts)
 	case "ZCARD":
 		return c.handleZCard(parts)
+
 	default:
 		return fmt.Errorf("unknown command '%s'", cmd)
 	}
@@ -230,27 +246,27 @@ func (c *CLI) printHelp() {
 支持的命令:
 
 通用键命令:
-  SET key value [ttl]       - 设置键值 (ttl单位为秒)
-  GET key                   - 获取键值
-  DEL key [key...]          - 删除键
-  KEYS [pattern]            - 列出所有键 (pattern支持*通配)
-  FLUSHDB                   - 清空当前数据库
-  EXPIRE key ttl            - 设置过期时间(秒)
-  TTL key                   - 查看剩余过期时间
+  SET key value [ttl]         - 设置键值 (ttl单位为秒)
+  GET key                     - 获取键值
+  DEL key [key...]            - 删除键
+  KEYS [pattern]              - 列出所有键 (pattern支持*通配)
+  FLUSHDB                     - 清空当前数据库
+  EXPIRE key ttl              - 设置过期时间(秒)
+  TTL key                     - 查看剩余过期时间
 
 Hash 命令:
-  HSET key field value      - 设置字段
-  HGET key field            - 获取字段
-  HGETALL key               - 获取所有字段
-  HDEL key field [field...] - 删除字段
+  HSET key field value        - 设置字段
+  HGET key field              - 获取字段
+  HGETALL key                 - 获取所有字段
+  HDEL key field [field...]   - 删除字段
 
 List 命令:
-  LPUSH key value [value...] - 从左侧插入
-  RPUSH key value [value...] - 从右侧插入
-  LPOP key                   - 从左侧弹出
-  RPOP key                   - 从右侧弹出
-  LRANGE key start stop      - 获取范围元素
-  LLEN key                   - 获取列表长度
+  LPUSH key value [value...]  - 从左侧插入
+  RPUSH key value [value...]  - 从右侧插入
+  LPOP key                    - 从左侧弹出
+  RPOP key                    - 从右侧弹出
+  LRANGE key start stop       - 获取范围元素
+  LLEN key                    - 获取列表长度
 
 Set 命令:
   SADD key member [member...] - 添加成员
@@ -263,8 +279,9 @@ ZSet 命令:
   ZCARD key                   - 获取成员数量
 
 其他:
-  help                      - 显示帮助
-  quit / exit               - 退出程序
+  clear                       - 清屏
+  help                        - 显示帮助
+  quit / exit                 - 退出程序
 `
 	fmt.Fprint(c.writer, help)
 }
