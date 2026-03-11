@@ -78,6 +78,14 @@ go build -o kv-cache.exe ./cmd/kv-cache
 | `ZRANGE key start stop` | 按排名范围获取 | `ZRANGE myzset 0 9` |
 | `ZCARD key` | 获取成员数量 | `ZCARD myzset` |
 
+### 系统命令
+
+| 命令 | 描述 | 示例 |
+|------|------|------|
+| `CLEAR` | 清空屏幕 | `CLEAR` |
+| `HELP` | 显示帮助信息 | `HELP` |
+| `EXIT` / `QUIT` | 退出程序 | `EXIT` |
+
 ## 项目结构
 
 ```
@@ -143,6 +151,14 @@ OK
 
 kv-cache> KEYS *
 (empty array)
+
+kv-cache> HELP
+支持的命令:
+
+通用键命令:
+  SET key value [ttl]         - 设置键值 (ttl单位为秒)
+  ...
+kv-cache> CLEAR
 
 kv-cache> EXIT
 Bye!
