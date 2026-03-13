@@ -9,24 +9,42 @@ import (
 
 // MemoryStore 是内存存储的实现
 type MemoryStore struct {
-	data map[string]*types.Value
-	mu   sync.RWMutex
+	data    map[string]*types.Value
+	mu      sync.RWMutex
+	gc      *GC
+	evictor *Evictor
 }
 
 // NewMemoryStore 创建一个新的存储实例
 func NewMemoryStore() *MemoryStore {
-	// 初始化 map 和 mutex
-	return &MemoryStore{
-		data: make(map[string]*types.Value),
-		mu:   sync.RWMutex{},
+	s := &MemoryStore{
+		data:    make(map[string]*types.Value),
+		mu:      sync.RWMutex{},
+		gc:      nil,
+		evictor: nil,
 	}
+
+	// 初始化 GC 和 Evictor
+	s.gc = NewGC(func() map[string]*types.Value {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		return s.data
+	})
+
+	s.evictor = NewEvictor(func() map[string]*types.Value {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		return s.data
+	})
+
+	return s
 }
 
 // Get 获取值（注意：要检查过期）
 func (s *MemoryStore) Get(key string) (types.Value, bool) {
 	s.mu.RLock()
 	val, exists := s.data[key]
-	s.mu.RUnlock() // 先解锁
+	s.mu.RUnlock()
 
 	if !exists {
 		return types.Value{}, false
@@ -54,6 +72,10 @@ func (s *MemoryStore) Set(key string, value types.Value, ttl time.Duration) erro
 	}
 
 	s.data[key] = &value
+
+	// 检查是否需要淘汰数据
+	s.evictor.EvictIfNeeded()
+
 	return nil
 }
 
@@ -76,25 +98,22 @@ func (s *MemoryStore) Exists(key string) bool {
 func (s *MemoryStore) Keys() []string {
 	s.mu.RLock()
 
-	// 第一遍：只读，收集信息
 	now := time.Now()
 	expiredKeys := make([]string, 0)
 	validKeys := make([]string, 0, len(s.data))
 
 	for key, val := range s.data {
 		if val != nil && val.ExpireAt != nil && now.After(*val.ExpireAt) {
-			expiredKeys = append(expiredKeys, key) // 记录过期键
+			expiredKeys = append(expiredKeys, key)
 		} else {
-			validKeys = append(validKeys, key) // 记录有效键
+			validKeys = append(validKeys, key)
 		}
 	}
-	s.mu.RUnlock() // 读锁释放
+	s.mu.RUnlock()
 
-	// 第二遍：加写锁删除过期键
 	if len(expiredKeys) > 0 {
 		s.mu.Lock()
 		for _, key := range expiredKeys {
-			// 双重检查：确认仍然过期（避免重复删除已被删掉的键）
 			if val, ok := s.data[key]; ok && val != nil &&
 				val.ExpireAt != nil && val.ExpireAt.Before(now) {
 				delete(s.data, key)
@@ -133,10 +152,10 @@ func (s *MemoryStore) Expire(key string, ttl time.Duration) bool {
 func (s *MemoryStore) TTL(key string) time.Duration {
 	val, exists := s.Get(key)
 	if !exists {
-		return -2 // 不存在
+		return -2
 	}
 	if val.ExpireAt == nil {
-		return -1 // 未设置过期
+		return -1
 	}
 	return time.Until(*val.ExpireAt)
 }
@@ -144,4 +163,34 @@ func (s *MemoryStore) TTL(key string) time.Duration {
 // DBSize 返回键数量（含过期）
 func (s *MemoryStore) DBSize() int {
 	return len(s.Keys())
+}
+
+// StartGC 启动后台 Goroutine 定期清理过期键
+func (s *MemoryStore) StartGC(interval time.Duration) {
+	s.gc.Start(interval)
+}
+
+// StopGC 停止后台 Goroutine
+func (s *MemoryStore) StopGC() {
+	s.gc.Stop()
+}
+
+// SetMaxMemory 设置最大内存限制
+func (s *MemoryStore) SetMaxMemory(maxBytes int64) {
+	s.evictor.SetMaxMemory(maxBytes)
+}
+
+// SetEvictPolicy 设置淘汰策略
+func (s *MemoryStore) SetEvictPolicy(policy EvictPolicy) {
+	s.evictor.SetEvictPolicy(policy)
+}
+
+// GetEvictPolicy 获取淘汰策略名称
+func (s *MemoryStore) GetEvictPolicy() string {
+	return s.evictor.GetEvictPolicy()
+}
+
+// MemoryUsage 估算当前内存使用（字节）
+func (s *MemoryStore) MemoryUsage() int64 {
+	return s.evictor.estimateUsage()
 }
