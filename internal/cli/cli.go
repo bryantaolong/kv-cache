@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"kv-cache/internal/persistence"
 	storage "kv-cache/internal/storage"
+	"kv-cache/internal/storage/types"
 )
 
 // CLI 命令行交互结构
@@ -29,6 +31,11 @@ func NewCLI(s *storage.MemoryStore, p *persistence.Persistence, reader io.Reader
 		writer:      writer,
 		interactive: interactive,
 	}
+}
+
+// UpdatePersist 更新 persist 引用
+func (c *CLI) UpdatePersist(p *persistence.Persistence) {
+	c.persist = p
 }
 
 // LoadData 从 AOF 加载数据
@@ -239,6 +246,55 @@ func (c *CLI) execute(cmd string, parts []string) error {
 		return fmt.Errorf("unknown command '%s'", cmd)
 	}
 	return nil
+}
+
+// Export 导出所有数据为命令列表（用于 AOF Rewrite）
+func (c *CLI) Export() []string {
+	var commands []string
+
+	keys := c.store.Keys()
+	for _, key := range keys {
+		val, exists := c.store.Get(key)
+		if !exists {
+			continue
+		}
+
+		switch v := val.Data.(type) {
+		case string:
+			cmd := fmt.Sprintf("SET %s %s", key, v)
+			if val.ExpireAt != nil {
+				ttl := int(time.Until(*val.ExpireAt).Seconds())
+				if ttl > 0 {
+					cmd += fmt.Sprintf(" %d", ttl)
+				}
+			}
+			commands = append(commands, cmd)
+
+		case map[string]string: // Hash
+			for field, value := range v {
+				commands = append(commands, fmt.Sprintf("HSET %s %s %s", key, field, value))
+			}
+
+		case []string: // List
+			if len(v) > 0 {
+				commands = append(commands, fmt.Sprintf("RPUSH %s %s", key, strings.Join(v, " ")))
+			}
+
+		case types.Set: // Set
+			members := v.SMembers()
+			if len(members) > 0 {
+				commands = append(commands, fmt.Sprintf("SADD %s %s", key, strings.Join(members, " ")))
+			}
+
+		case *types.ZSet: // ZSet
+			members := v.ZRange(0, -1)
+			for _, m := range members {
+				commands = append(commands, fmt.Sprintf("ZADD %s %f %s", key, m.Score, m.Member))
+			}
+		}
+	}
+
+	return commands
 }
 
 func (c *CLI) printHelp() {

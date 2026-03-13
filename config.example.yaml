@@ -1,0 +1,15 @@
+# kv-cache 配置文件示例
+
+# 服务器配置
+# address: ":6379"  # 监听地址（暂未实现网络服务）
+
+# 数据目录
+data-dir: "./data"
+
+# 持久化配置
+no-persist: false           # 是否禁用持久化
+rewrite-size: 67108864      # AOF 自动 Rewrite 触发阈值（字节），64MB
+
+# 内存配置
+maxmemory: 0                # 最大内存限制（字节），0 表示不限制
+eviction-policy: "noeviction" # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
