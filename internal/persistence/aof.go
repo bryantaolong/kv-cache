@@ -12,10 +12,13 @@ import (
 
 // Persistence 处理 AOF 持久化
 type Persistence struct {
-	filepath string
-	file     *os.File
-	writer   *bufio.Writer
-	mutex    sync.Mutex
+	filepath     string
+	file         *os.File
+	writer       *bufio.Writer
+	mutex        sync.Mutex
+	running      bool
+	stopChan     chan struct{}
+	rewriteSize  int64 // 触发自动 Rewrite 的文件大小阈值（字节）
 }
 
 // NewPersistence 创建持久化实例
@@ -37,6 +40,8 @@ func NewPersistence(dataDir string) (*Persistence, error) {
 		filepath: filepath,
 		file:     file,
 		writer:   bufio.NewWriter(file),
+		running:  false,
+		stopChan: make(chan struct{}),
 	}, nil
 }
 
@@ -248,4 +253,64 @@ func (p *Persistence) Reader() (io.ReadCloser, error) {
 		return nil, fmt.Errorf("persistence not initialized")
 	}
 	return os.Open(p.filepath)
+}
+
+// StartAutoRewrite 启动自动 Rewrite 后台 Goroutine
+// rewriteSize: 触发 Rewrite 的文件大小阈值（字节），0 表示不自动触发
+// interval: 检查间隔
+// exportFunc: 导出数据为命令列表的函数
+func (p *Persistence) StartAutoRewrite(rewriteSize int64, interval time.Duration, exportFunc func() []string) {
+	if p == nil || rewriteSize <= 0 {
+		return
+	}
+
+	p.mutex.Lock()
+	if p.running {
+		p.mutex.Unlock()
+		return
+	}
+	p.running = true
+	p.rewriteSize = rewriteSize
+	p.mutex.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-p.stopChan:
+				p.mutex.Lock()
+				p.running = false
+				p.mutex.Unlock()
+				return
+			case <-ticker.C:
+				p.checkAndRewrite(exportFunc)
+			}
+		}
+	}()
+}
+
+// StopAutoRewrite 停止自动 Rewrite
+func (p *Persistence) StopAutoRewrite() {
+	if p == nil {
+		return
+	}
+	select {
+	case p.stopChan <- struct{}{}:
+	default:
+	}
+}
+
+// checkAndRewrite 检查是否需要触发 Rewrite
+func (p *Persistence) checkAndRewrite(exportFunc func() []string) {
+	size := p.GetSize()
+	if size >= p.rewriteSize {
+		fmt.Printf("* AOF file size (%d bytes) >= threshold (%d bytes), triggering rewrite...\n", size, p.rewriteSize)
+		if err := p.Rewrite(exportFunc); err != nil {
+			fmt.Fprintf(os.Stderr, "Auto rewrite failed: %v\n", err)
+		} else {
+			fmt.Printf("* Rewrite completed, new file size: %d bytes\n", p.GetSize())
+		}
+	}
 }
