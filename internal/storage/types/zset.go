@@ -223,6 +223,15 @@ func (z *ZSet) ZCard() int {
 	return len(z.dict)
 }
 
+// Members 返回所有成员（用于内存估算）
+func (z *ZSet) Members() []string {
+	members := make([]string, 0, len(z.dict))
+	for m := range z.dict {
+		members = append(members, m)
+	}
+	return members
+}
+
 // ZCount 返回 score 在 [min, max] 范围内的成员数量
 func (z *ZSet) ZCount(min, max float64) int {
 	return len(z.ZRangeByScore(min, max))

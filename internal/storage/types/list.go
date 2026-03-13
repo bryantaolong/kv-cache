@@ -12,10 +12,15 @@ func NewList() List {
 // 返回值：插入后列表的长度
 // 注意：LPUSH key a b c => 列表为 [c, b, a]
 func (l *List) LPush(values ...string) int {
-	// 正序插入，每个都插到最前面
-	for _, v := range values {
-		*l = append([]string{v}, *l...)
+	if len(values) == 0 {
+		return len(*l)
 	}
+	// 一次性构建：先反转 values，再整体 append
+	// 这样只需要一次复制，时间复杂度 O(n)
+	for i, j := 0, len(values)-1; i < j; i, j = i+1, j-1 {
+		values[i], values[j] = values[j], values[i]
+	}
+	*l = append(values, *l...)
 	return len(*l)
 }
 
