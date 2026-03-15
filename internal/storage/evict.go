@@ -1,4 +1,4 @@
-package store
+package storage
 
 import (
 	"math/rand"
@@ -11,19 +11,19 @@ import (
 type EvictPolicy int
 
 const (
-	EvictNoeviction EvictPolicy = iota // 不淘汰
-	EvictAllKeysLRU                   // 所有键 LRU
-	EvictVolatileLRU                  // 带过期键 LRU
-	EvictAllKeysRandom                // 所有键随机
-	EvictVolatileRandom               // 带过期键随机
+	EvictNoeviction     EvictPolicy = iota // 不淘汰
+	EvictAllKeysLRU                        // 所有键 LRU
+	EvictVolatileLRU                       // 带过期键 LRU
+	EvictAllKeysRandom                     // 所有键随机
+	EvictVolatileRandom                    // 带过期键随机
 )
 
 // Evictor 淘汰器
 type Evictor struct {
-	mu         sync.RWMutex
-	maxMemory  int64           // 最大内存限制（字节）
-	evictPolicy EvictPolicy   // 淘汰策略
-	data       func() map[string]*types.Value // 获取数据的回调
+	mu          sync.RWMutex
+	maxMemory   int64                          // 最大内存限制（字节）
+	evictPolicy EvictPolicy                    // 淘汰策略
+	data        func() map[string]*types.Value // 获取数据的回调
 }
 
 // NewEvictor 创建淘汰器
