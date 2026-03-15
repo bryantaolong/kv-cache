@@ -55,27 +55,6 @@ func (c *CLI) LoadData() error {
 	})
 }
 
-// executeSilent 静默执行命令（不输出到终端，不记录到 AOF）
-func (c *CLI) executeSilent(cmd string, parts []string) error {
-	switch cmd {
-	case "SET":
-		return c.handleSet(parts)
-	case "HSET":
-		return c.handleHSet(parts)
-	case "RPUSH":
-		return c.handleRPush(parts)
-	case "LPUSH":
-		return c.handleLPush(parts)
-	case "SADD":
-		return c.handleSAdd(parts)
-	case "ZADD":
-		return c.handleZAdd(parts)
-	case "EXPIRE":
-		return c.handleExpire(parts)
-	}
-	return nil
-}
-
 // Run 启动命令行循环
 func (c *CLI) Run() error {
 	for {
@@ -248,6 +227,72 @@ func (c *CLI) execute(cmd string, parts []string) error {
 	return nil
 }
 
+// executeSilent 静默执行命令（不输出到终端，不记录到 AOF）
+func (c *CLI) executeSilent(cmd string, parts []string) error {
+	switch cmd {
+	case "SET":
+		return c.handleSet(parts)
+	case "HSET":
+		return c.handleHSet(parts)
+	case "RPUSH":
+		return c.handleRPush(parts)
+	case "LPUSH":
+		return c.handleLPush(parts)
+	case "SADD":
+		return c.handleSAdd(parts)
+	case "ZADD":
+		return c.handleZAdd(parts)
+	case "EXPIRE":
+		return c.handleExpire(parts)
+	}
+	return nil
+}
+
+func (c *CLI) printHelp() {
+	help := `
+支持的命令:
+
+通用键命令:
+  SET key value [ttl]         - 设置键值 (ttl单位为秒)
+  GET key                     - 获取键值
+  DEL key [key...]            - 删除键
+  KEYS [pattern]              - 列出所有键 (pattern支持*通配)
+  FLUSHDB                     - 清空当前数据库
+  EXPIRE key ttl              - 设置过期时间(秒)
+  TTL key                     - 查看剩余过期时间
+
+Hash 命令:
+  HSET key field value        - 设置字段
+  HGET key field              - 获取字段
+  HGETALL key                 - 获取所有字段
+  HDEL key field [field...]   - 删除字段
+
+List 命令:
+  LPUSH key value [value...]  - 从左侧插入
+  RPUSH key value [value...]  - 从右侧插入
+  LPOP key                    - 从左侧弹出
+  RPOP key                    - 从右侧弹出
+  LRANGE key start stop       - 获取范围元素
+  LLEN key                    - 获取列表长度
+
+Set 命令:
+  SADD key member [member...] - 添加成员
+  SMEMBERS key                - 获取所有成员
+  SCARD key                   - 获取成员数量
+
+ZSet 命令:
+  ZADD key score member       - 添加成员
+  ZRANGE key start stop       - 获取排名范围成员
+  ZCARD key                   - 获取成员数量
+
+其他:
+  clear                       - 清屏
+  help                        - 显示帮助
+  quit / exit                 - 退出程序
+`
+	fmt.Fprint(c.writer, help)
+}
+
 // Export 导出所有数据为命令列表（用于 AOF Rewrite）
 func (c *CLI) Export() []string {
 	var commands []string
@@ -295,49 +340,4 @@ func (c *CLI) Export() []string {
 	}
 
 	return commands
-}
-
-func (c *CLI) printHelp() {
-	help := `
-支持的命令:
-
-通用键命令:
-  SET key value [ttl]         - 设置键值 (ttl单位为秒)
-  GET key                     - 获取键值
-  DEL key [key...]            - 删除键
-  KEYS [pattern]              - 列出所有键 (pattern支持*通配)
-  FLUSHDB                     - 清空当前数据库
-  EXPIRE key ttl              - 设置过期时间(秒)
-  TTL key                     - 查看剩余过期时间
-
-Hash 命令:
-  HSET key field value        - 设置字段
-  HGET key field              - 获取字段
-  HGETALL key                 - 获取所有字段
-  HDEL key field [field...]   - 删除字段
-
-List 命令:
-  LPUSH key value [value...]  - 从左侧插入
-  RPUSH key value [value...]  - 从右侧插入
-  LPOP key                    - 从左侧弹出
-  RPOP key                    - 从右侧弹出
-  LRANGE key start stop       - 获取范围元素
-  LLEN key                    - 获取列表长度
-
-Set 命令:
-  SADD key member [member...] - 添加成员
-  SMEMBERS key                - 获取所有成员
-  SCARD key                   - 获取成员数量
-
-ZSet 命令:
-  ZADD key score member       - 添加成员
-  ZRANGE key start stop       - 获取排名范围成员
-  ZCARD key                   - 获取成员数量
-
-其他:
-  clear                       - 清屏
-  help                        - 显示帮助
-  quit / exit                 - 退出程序
-`
-	fmt.Fprint(c.writer, help)
 }
