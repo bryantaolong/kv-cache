@@ -20,10 +20,10 @@ go build -o kv-cache.exe ./cmd/kv-cache
 ./kv-cache.exe
 
 # 指定数据目录
-./kv-cache.exe -data ./mydata
+./kv-cache.exe --data ./mydata
 
 # 禁用持久化
-./kv-cache.exe -no-persist
+./kv-cache.exe --no-persist
 ```
 
 ## 支持的命令
