@@ -95,7 +95,7 @@ kv-cache/
 ├── internal/
 │   ├── cli/                # 命令行交互
 │   │   └── cli.go
-│   ├── persistence/        # AOF 持久化
+│   ├── persist/        # AOF 持久化
 │   │   └── aof.go
 │   └── storage/            # 存储引擎
 │       ├── store.go        # MemoryStore 实现
