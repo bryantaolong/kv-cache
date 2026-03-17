@@ -1,4 +1,4 @@
-package persistence
+package persist
 
 import (
 	"bufio"
@@ -12,13 +12,13 @@ import (
 
 // Persistence 处理 AOF 持久化
 type Persistence struct {
-	filepath     string
-	file         *os.File
-	writer       *bufio.Writer
-	mutex        sync.Mutex
-	running      bool
-	stopChan     chan struct{}
-	rewriteSize  int64 // 触发自动 Rewrite 的文件大小阈值（字节）
+	filepath    string
+	file        *os.File
+	writer      *bufio.Writer
+	mutex       sync.Mutex
+	running     bool
+	stopChan    chan struct{}
+	rewriteSize int64 // 触发自动 Rewrite 的文件大小阈值（字节）
 }
 
 // NewPersistence 创建持久化实例
@@ -29,7 +29,7 @@ func NewPersistence(dataDir string) (*Persistence, error) {
 	}
 
 	filepath := filepath.Join(dataDir, "appendonly.aof")
-	
+
 	// 以追加模式打开文件
 	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -115,13 +115,13 @@ func (p *Persistence) Load(executor func(string) error) error {
 
 	// 逐行读取并执行
 	scanner := bufio.NewScanner(file)
-	
+
 	for scanner.Scan() {
 		command := scanner.Text()
 		if command == "" {
 			continue
 		}
-		
+
 		if err := executor(command); err != nil {
 			// 加载时遇到错误，打印警告但继续
 			fmt.Fprintf(os.Stderr, "Warning: failed to execute command [%s]: %v\n", command, err)
@@ -160,7 +160,8 @@ func (p *Persistence) Close() error {
 
 // Rewrite 重写 AOF 文件（压缩）
 // 通过导出当前内存状态，生成最小命令集
-func (p *Persistence) Rewrite(exportFunc func() []string) error {
+// 暂时私有化，不对外暴露
+func (p *Persistence) rewrite(exportFunc func() []string) error {
 	if p == nil {
 		return nil
 	}
@@ -248,7 +249,8 @@ func (p *Persistence) GetSize() int64 {
 }
 
 // Reader 返回 AOF 文件读取器（用于外部读取）
-func (p *Persistence) Reader() (io.ReadCloser, error) {
+// 暂时不使用
+func (p *Persistence) reader() (io.ReadCloser, error) {
 	if p == nil {
 		return nil, fmt.Errorf("persistence not initialized")
 	}
@@ -307,7 +309,7 @@ func (p *Persistence) checkAndRewrite(exportFunc func() []string) {
 	size := p.GetSize()
 	if size >= p.rewriteSize {
 		fmt.Printf("* AOF file size (%d bytes) >= threshold (%d bytes), triggering rewrite...\n", size, p.rewriteSize)
-		if err := p.Rewrite(exportFunc); err != nil {
+		if err := p.rewrite(exportFunc); err != nil {
 			fmt.Fprintf(os.Stderr, "Auto rewrite failed: %v\n", err)
 		} else {
 			fmt.Printf("* Rewrite completed, new file size: %d bytes\n", p.GetSize())

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"kv-cache/internal/persistence"
+	ps "kv-cache/internal/persist"
 	storage "kv-cache/internal/storage"
 	"kv-cache/internal/storage/types"
 )
@@ -15,7 +15,7 @@ import (
 // CLI 命令行交互结构
 type CLI struct {
 	store       *storage.MemoryStore
-	persist     *persistence.Persistence
+	persist     *ps.Persistence
 	reader      *bufio.Reader
 	writer      io.Writer
 	interactive bool
@@ -23,7 +23,7 @@ type CLI struct {
 }
 
 // NewCLI 创建 CLI 实例
-func NewCLI(s *storage.MemoryStore, p *persistence.Persistence, reader io.Reader, writer io.Writer, interactive bool) *CLI {
+func NewCLI(s *storage.MemoryStore, p *ps.Persistence, reader io.Reader, writer io.Writer, interactive bool) *CLI {
 	return &CLI{
 		store:       s,
 		persist:     p,
@@ -34,7 +34,7 @@ func NewCLI(s *storage.MemoryStore, p *persistence.Persistence, reader io.Reader
 }
 
 // UpdatePersist 更新 persist 引用
-func (c *CLI) UpdatePersist(p *persistence.Persistence) {
+func (c *CLI) UpdatePersist(p *ps.Persistence) {
 	c.persist = p
 }
 

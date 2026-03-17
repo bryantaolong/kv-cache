@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"kv-cache/internal/cli"
-	"kv-cache/internal/persistence"
+	persist "kv-cache/internal/persist"
 	storage "kv-cache/internal/storage"
 )
 
@@ -140,28 +140,28 @@ func main() {
 	c := cli.NewCLI(s, nil, os.Stdin, os.Stdout, true)
 
 	// 创建持久化模块
-	var persist *persistence.Persistence
+	var ps *persist.Persistence
 	if !cfg.NoPersist {
-		persist, err = persistence.NewPersistence(cfg.DataDir)
+		ps, err = persist.NewPersistence(cfg.DataDir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to initialize persistence: %v\n", err)
 			os.Exit(1)
 		}
-		defer persist.Close()
+		defer ps.Close()
 
 		// 更新 CLI 的 persist 引用
-		c.UpdatePersist(persist)
+		c.UpdatePersist(ps)
 
 		// 启动自动 AOF Rewrite（每分钟检查一次）
 		if cfg.RewriteSize > 0 {
-			persist.StartAutoRewrite(cfg.RewriteSize, time.Minute, func() []string {
+			ps.StartAutoRewrite(cfg.RewriteSize, time.Minute, func() []string {
 				return c.Export()
 			})
 		}
 	}
 
 	// 加载已有数据
-	if persist != nil {
+	if ps != nil {
 		if err := c.LoadData(); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to load data: %v\n", err)
 		}
@@ -174,9 +174,9 @@ func main() {
 	go func() {
 		<-sigChan
 		fmt.Println("\n* Saving data...")
-		if persist != nil {
-			persist.Close()
-			persist.StopAutoRewrite()
+		if ps != nil {
+			ps.Close()
+			ps.StopAutoRewrite()
 		}
 		s.StopGC()
 		fmt.Println("* Bye!")
@@ -188,9 +188,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 	}
 
-	if persist != nil {
-		persist.Close()
-		persist.StopAutoRewrite()
+	if ps != nil {
+		ps.Close()
+		ps.StopAutoRewrite()
 	}
 	s.StopGC()
 }

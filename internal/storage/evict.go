@@ -137,7 +137,7 @@ func (e *Evictor) estimateUsage() int64 {
 // doEvict 执行一次淘汰
 func (e *Evictor) doEvict() bool {
 	data := e.data()
-	if data == nil || len(data) == 0 {
+	if len(data) == 0 {
 		return false
 	}
 
