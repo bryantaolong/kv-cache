@@ -24,6 +24,9 @@ go build -o kv-cache.exe ./cmd/kv-cache
 
 # 禁用持久化
 ./kv-cache.exe --no-persist
+
+# 使用配置文件
+./kv-cache.exe --config ./config.yaml
 ```
 
 ## 支持的命令
@@ -95,7 +98,9 @@ kv-cache/
 ├── internal/
 │   ├── cli/                # 命令行交互
 │   │   └── cli.go
-│   ├── persist/        # AOF 持久化
+│   ├── config/             # 配置管理（基于 viper）
+│   │   └── config.go
+│   ├── persist/            # AOF 持久化
 │   │   └── aof.go
 │   └── storage/            # 存储引擎
 │       ├── store.go        # MemoryStore 实现
@@ -107,6 +112,7 @@ kv-cache/
 │           ├── set.go      # Set 类型
 │           ├── zset.go     # ZSet 类型
 │           └── string.go   # 字符串工具
+├── config.yaml             # 配置文件示例
 └── data/                   # 默认数据目录
     └── appendonly.aof      # AOF 持久化文件
 ```
@@ -176,6 +182,64 @@ HSET user:1 name "John Doe"
 # 也支持无引号（不包含空格时）
 SET name alice
 ```
+
+## 配置
+
+支持三种配置方式（优先级从高到低）：
+
+1. **命令行参数** - 最高优先级
+2. **环境变量** - 前缀 `KVCACHE_`
+3. **配置文件** - YAML/JSON/TOML 格式
+4. **默认值**
+
+### 命令行参数
+
+```bash
+./kv-cache.exe --help
+
+# 常用参数
+./kv-cache.exe --config ./config.yaml      # 指定配置文件
+./kv-cache.exe --data ./mydata             # 数据目录
+./kv-cache.exe --no-persist                # 禁用持久化
+./kv-cache.exe --rewrite-size 134217728    # AOF 重写阈值（字节）
+./kv-cache.exe --maxmemory 104857600       # 最大内存限制（字节）
+./kv-cache.exe --maxmemory-policy allkeys-lru  # 内存淘汰策略
+```
+
+### 环境变量
+
+```bash
+# Windows
+set KVCACHE_DATA_DIR=./mydata
+set KVCACHE_MAXMEMORY=104857600
+set KVCACHE_EVICTION_POLICY=allkeys-lru
+
+# Linux/macOS
+export KVCACHE_DATA_DIR=./mydata
+export KVCACHE_MAXMEMORY=104857600
+```
+
+### 配置文件
+
+创建 `config.yaml`：
+
+```yaml
+# 服务器配置
+address: ":6379"
+
+# 数据目录
+data-dir: "./data"
+
+# 持久化配置
+no-persist: false           # 是否禁用持久化
+rewrite-size: 67108864      # AOF 自动重写阈值（字节），默认 64MB
+
+# 内存配置
+maxmemory: 0                # 最大内存限制（字节），0 表示不限制
+eviction-policy: "noeviction"  # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+```
+
+参考 `config.example.yaml` 文件。
 
 ## 持久化
 

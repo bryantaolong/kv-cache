@@ -8,69 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"kv-cache/internal/cli"
+	"kv-cache/internal/config"
 	persist "kv-cache/internal/persist"
 	storage "kv-cache/internal/storage"
 )
-
-// Config 配置结构
-type Config struct {
-	// 服务器配置
-	Address string `yaml:"address"` // 监听地址
-
-	// 数据目录
-	DataDir string `yaml:"data-dir"` // 数据目录路径
-
-	// 持久化配置
-	NoPersist   bool  `yaml:"no-persist"`    // 是否禁用持久化
-	RewriteSize int64 `yaml:"rewrite-size"` // AOF 自动 Rewrite 触发阈值（字节）
-
-	// 内存配置
-	MaxMemory    int64  `yaml:"maxmemory"`     // 最大内存限制（字节）
-	EvictPolicy  string `yaml:"eviction-policy"` // 淘汰策略
-}
-
-// LoadConfig 加载配置文件
-func LoadConfig(path string) (*Config, error) {
-	// 默认配置
-	cfg := &Config{
-		Address:     ":6379",
-		DataDir:     "./data",
-		NoPersist:   false,
-		RewriteSize: 64 * 1024 * 1024, // 64MB
-		MaxMemory:   0,
-		EvictPolicy: "noeviction",
-	}
-
-	// 如果配置文件不存在，使用默认配置
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return cfg, nil
-	}
-
-	// 读取配置文件
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// 解析 YAML
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	return cfg, nil
-}
-
-// SaveConfig 保存配置到文件
-func SaveConfig(path string, cfg *Config) error {
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-	return os.WriteFile(path, data, 0644)
-}
 
 // DefaultConfigPath 默认配置文件路径
 const DefaultConfigPath = "./config.yaml"
@@ -85,8 +27,12 @@ func main() {
 	evictPolicy := flag.String("maxmemory-policy", "", "淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random")
 	flag.Parse()
 
-	// 加载配置文件
-	cfg, err := LoadConfig(*configPath)
+	// 创建配置加载器
+	loader := config.NewLoader()
+	loader.SetConfigFile(*configPath)
+
+	// 加载配置
+	cfg, err := loader.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
