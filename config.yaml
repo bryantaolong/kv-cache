@@ -11,5 +11,5 @@ no-persist: false           # 是否禁用持久化
 rewrite-size: 67108864      # AOF 自动 Rewrite 触发阈值（字节），64MB
 
 # 内存配置
-maxmemory: 0                # 最大内存限制（字节），0 表示不限制
-eviction-policy: "noeviction" # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+max-memory: 0                # 最大内存限制（字节），0 表示不限制
+eviction-policy: "allkeys-lru" # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random

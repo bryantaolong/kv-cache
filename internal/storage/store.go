@@ -180,14 +180,14 @@ func (s *MemoryStore) SetMaxMemory(maxBytes int64) {
 	s.evictor.SetMaxMemory(maxBytes)
 }
 
-// SetEvictPolicy 设置淘汰策略
-func (s *MemoryStore) SetEvictPolicy(policy EvictPolicy) {
-	s.evictor.SetEvictPolicy(policy)
+// SetEvictionPolicy 设置淘汰策略
+func (s *MemoryStore) SetEvictionPolicy(policy EvictionPolicy) {
+	s.evictor.SetEvictionPolicy(policy)
 }
 
-// GetEvictPolicy 获取淘汰策略名称
-func (s *MemoryStore) GetEvictPolicy() string {
-	return s.evictor.GetEvictPolicy()
+// GetEvictionPolicy 获取淘汰策略名称
+func (s *MemoryStore) GetEvictionPolicy() string {
+	return s.evictor.GetEvictionPolicy()
 }
 
 // MemoryUsage 估算当前内存使用（字节）

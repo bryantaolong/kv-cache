@@ -202,8 +202,8 @@ SET name alice
 ./kv-cache.exe --data ./mydata             # 数据目录
 ./kv-cache.exe --no-persist                # 禁用持久化
 ./kv-cache.exe --rewrite-size 134217728    # AOF 重写阈值（字节）
-./kv-cache.exe --maxmemory 104857600       # 最大内存限制（字节）
-./kv-cache.exe --maxmemory-policy allkeys-lru  # 内存淘汰策略
+./kv-cache.exe --max-memory 104857600       # 最大内存限制（字节）
+./kv-cache.exe --eviction-policy allkeys-lru  # 内存淘汰策略
 ```
 
 ### 环境变量
@@ -211,12 +211,12 @@ SET name alice
 ```bash
 # Windows
 set KVCACHE_DATA_DIR=./mydata
-set KVCACHE_MAXMEMORY=104857600
+set KVCACHE_MAX_MEMORY=104857600
 set KVCACHE_EVICTION_POLICY=allkeys-lru
 
 # Linux/macOS
 export KVCACHE_DATA_DIR=./mydata
-export KVCACHE_MAXMEMORY=104857600
+export KVCACHE_MAX_MEMORY=104857600
 ```
 
 ### 配置文件
@@ -235,11 +235,11 @@ no-persist: false           # 是否禁用持久化
 rewrite-size: 67108864      # AOF 自动重写阈值（字节），默认 64MB
 
 # 内存配置
-maxmemory: 0                # 最大内存限制（字节），0 表示不限制
+max-memory: 0                # 最大内存限制（字节），0 表示不限制
 eviction-policy: "noeviction"  # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
 ```
 
-参考 `config.example.yaml` 文件。
+参考 `config.yaml` 文件。
 
 ## 持久化
 

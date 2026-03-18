@@ -21,19 +21,19 @@ type Config struct {
 	RewriteSize int64 `mapstructure:"rewrite-size"`
 
 	// 内存配置
-	MaxMemory   int64  `mapstructure:"maxmemory"`
-	EvictPolicy string `mapstructure:"eviction-policy"`
+	MaxMemory      int64  `mapstructure:"max-memory"`
+	EvictionPolicy string `mapstructure:"eviction-policy"`
 }
 
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		Address:     ":6379",
-		DataDir:     "./data",
-		NoPersist:   false,
-		RewriteSize: 64 * 1024 * 1024, // 64MB
-		MaxMemory:   0,
-		EvictPolicy: "noeviction",
+		Address:        ":6379",
+		DataDir:        "./data",
+		NoPersist:      false,
+		RewriteSize:    64 * 1024 * 1024, // 64MB
+		MaxMemory:      0,
+		EvictionPolicy: "noeviction",
 	}
 }
 
@@ -42,13 +42,13 @@ func (c *Config) Validate() error {
 	validPolicies := []string{"noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"}
 	found := false
 	for _, policy := range validPolicies {
-		if strings.ToLower(c.EvictPolicy) == policy {
+		if strings.ToLower(c.EvictionPolicy) == policy {
 			found = true
 			break
 		}
 	}
 	if !found {
-		return fmt.Errorf("invalid eviction policy: %s", c.EvictPolicy)
+		return fmt.Errorf("invalid eviction policy: %s", c.EvictionPolicy)
 	}
 	return nil
 }
@@ -68,8 +68,8 @@ func NewLoader() *Loader {
 	v.SetDefault("data-dir", defaults.DataDir)
 	v.SetDefault("no-persist", defaults.NoPersist)
 	v.SetDefault("rewrite-size", defaults.RewriteSize)
-	v.SetDefault("maxmemory", defaults.MaxMemory)
-	v.SetDefault("eviction-policy", defaults.EvictPolicy)
+	v.SetDefault("max-memory", defaults.MaxMemory)
+	v.SetDefault("eviction-policy", defaults.EvictionPolicy)
 
 	// 支持环境变量
 	v.SetEnvPrefix("KVCACHE")

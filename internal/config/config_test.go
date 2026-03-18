@@ -22,10 +22,10 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("expected rewrite-size 67108864, got %d", cfg.RewriteSize)
 	}
 	if cfg.MaxMemory != 0 {
-		t.Errorf("expected maxmemory 0, got %d", cfg.MaxMemory)
+		t.Errorf("expected max-memory 0, got %d", cfg.MaxMemory)
 	}
-	if cfg.EvictPolicy != "noeviction" {
-		t.Errorf("expected eviction-policy noeviction, got %s", cfg.EvictPolicy)
+	if cfg.EvictionPolicy != "noeviction" {
+		t.Errorf("expected eviction-policy noeviction, got %s", cfg.EvictionPolicy)
 	}
 }
 
@@ -48,9 +48,9 @@ func TestConfigValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				Address:     ":6379",
-				DataDir:     "./data",
-				EvictPolicy: tt.policy,
+				Address:        ":6379",
+				DataDir:        "./data",
+				EvictionPolicy: tt.policy,
 			}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
@@ -71,7 +71,7 @@ address: ":6380"
 data-dir: "./test-data"
 no-persist: true
 rewrite-size: 134217728
-maxmemory: 104857600
+max-memory: 104857600
 eviction-policy: "allkeys-lru"
 `
 		configFile := filepath.Join(tmpDir, "config.yaml")
@@ -97,10 +97,10 @@ eviction-policy: "allkeys-lru"
 			t.Errorf("expected rewrite-size 134217728, got %d", cfg.RewriteSize)
 		}
 		if cfg.MaxMemory != 104857600 {
-			t.Errorf("expected maxmemory 104857600, got %d", cfg.MaxMemory)
+			t.Errorf("expected max-memory 104857600, got %d", cfg.MaxMemory)
 		}
-		if cfg.EvictPolicy != "allkeys-lru" {
-			t.Errorf("expected eviction-policy allkeys-lru, got %s", cfg.EvictPolicy)
+		if cfg.EvictionPolicy != "allkeys-lru" {
+			t.Errorf("expected eviction-policy allkeys-lru, got %s", cfg.EvictionPolicy)
 		}
 	})
 
@@ -145,7 +145,7 @@ func TestLoaderWithFlags(t *testing.T) {
 
 	// 测试绑定命令行参数
 	loader.BindFlag("data-dir", "/custom/data")
-	loader.BindFlag("maxmemory", int64(1024))
+	loader.BindFlag("max-memory", int64(1024))
 
 	cfg, err := loader.Load()
 	if err != nil {
@@ -156,6 +156,6 @@ func TestLoaderWithFlags(t *testing.T) {
 		t.Errorf("expected data-dir /custom/data, got %s", cfg.DataDir)
 	}
 	if cfg.MaxMemory != 1024 {
-		t.Errorf("expected maxmemory 1024, got %d", cfg.MaxMemory)
+		t.Errorf("expected max-memory 1024, got %d", cfg.MaxMemory)
 	}
 }

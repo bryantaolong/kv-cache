@@ -7,30 +7,30 @@ import (
 	"kv-cache/internal/storage/types"
 )
 
-// EvictPolicy 淘汰策略
-type EvictPolicy int
+// EvictionPolicy 淘汰策略
+type EvictionPolicy int
 
 const (
-	EvictNoeviction     EvictPolicy = iota // 不淘汰
-	EvictAllKeysLRU                        // 所有键 LRU
-	EvictVolatileLRU                       // 带过期键 LRU
-	EvictAllKeysRandom                     // 所有键随机
-	EvictVolatileRandom                    // 带过期键随机
+	EvictNoeviction     EvictionPolicy = iota // 不淘汰
+	EvictAllKeysLRU                           // 所有键 LRU
+	EvictVolatileLRU                          // 带过期键 LRU
+	EvictAllKeysRandom                        // 所有键随机
+	EvictVolatileRandom                       // 带过期键随机
 )
 
 // Evictor 淘汰器
 type Evictor struct {
-	mu          sync.RWMutex
-	maxMemory   int64                          // 最大内存限制（字节）
-	evictPolicy EvictPolicy                    // 淘汰策略
-	data        func() map[string]*types.Value // 获取数据的回调
+	mu             sync.RWMutex
+	maxMemory      int64                          // 最大内存限制（字节）
+	evictionPolicy EvictionPolicy                 // 淘汰策略
+	data           func() map[string]*types.Value // 获取数据的回调
 }
 
 // NewEvictor 创建淘汰器
 func NewEvictor(dataFunc func() map[string]*types.Value) *Evictor {
 	return &Evictor{
-		data:        dataFunc,
-		evictPolicy: EvictNoeviction,
+		data:           dataFunc,
+		evictionPolicy: EvictNoeviction,
 	}
 }
 
@@ -41,18 +41,18 @@ func (e *Evictor) SetMaxMemory(maxBytes int64) {
 	e.maxMemory = maxBytes
 }
 
-// SetEvictPolicy 设置淘汰策略
-func (e *Evictor) SetEvictPolicy(policy EvictPolicy) {
+// SetEvictionPolicy 设置淘汰策略
+func (e *Evictor) SetEvictionPolicy(policy EvictionPolicy) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.evictPolicy = policy
+	e.evictionPolicy = policy
 }
 
-// GetEvictPolicy 获取淘汰策略名称
-func (e *Evictor) GetEvictPolicy() string {
+// GetEvictionPolicy 获取淘汰策略名称
+func (e *Evictor) GetEvictionPolicy() string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	switch e.evictPolicy {
+	switch e.evictionPolicy {
 	case EvictNoeviction:
 		return "noeviction"
 	case EvictAllKeysLRU:
@@ -72,7 +72,7 @@ func (e *Evictor) GetEvictPolicy() string {
 func (e *Evictor) EvictIfNeeded() {
 	e.mu.RLock()
 	maxMemory := e.maxMemory
-	policy := e.evictPolicy
+	policy := e.evictionPolicy
 	e.mu.RUnlock()
 
 	if maxMemory <= 0 || policy == EvictNoeviction {
@@ -142,7 +142,7 @@ func (e *Evictor) doEvict() bool {
 	}
 
 	e.mu.RLock()
-	policy := e.evictPolicy
+	policy := e.evictionPolicy
 	e.mu.RUnlock()
 
 	var candidates []string

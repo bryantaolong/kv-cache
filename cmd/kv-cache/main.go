@@ -23,8 +23,8 @@ func main() {
 	dataDir := flag.String("data", "", "数据目录路径")
 	noPersist := flag.Bool("no-persist", false, "禁用持久化")
 	rewriteSize := flag.Int64("rewrite-size", 0, "AOF 自动 Rewrite 触发阈值（字节），0 表示禁用")
-	maxMemory := flag.Int64("maxmemory", 0, "最大内存限制（字节），0 表示不限制")
-	evictPolicy := flag.String("maxmemory-policy", "", "淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random")
+	maxMemory := flag.Int64("max-memory", 0, "最大内存限制（字节），0 表示不限制")
+	evictionPolicy := flag.String("eviction-policy", "", "淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random")
 	flag.Parse()
 
 	// 创建配置加载器
@@ -51,8 +51,8 @@ func main() {
 	if *maxMemory > 0 {
 		cfg.MaxMemory = *maxMemory
 	}
-	if *evictPolicy != "" {
-		cfg.EvictPolicy = *evictPolicy
+	if *evictionPolicy != "" {
+		cfg.EvictionPolicy = *evictionPolicy
 	}
 
 	// 创建存储引擎
@@ -61,23 +61,23 @@ func main() {
 	// 设置内存限制和淘汰策略
 	if cfg.MaxMemory > 0 {
 		s.SetMaxMemory(cfg.MaxMemory)
-		fmt.Printf("* Maxmemory set to %d bytes\n", cfg.MaxMemory)
+		fmt.Printf("* MaxMemory set to %d bytes\n", cfg.MaxMemory)
 	}
 
 	// 解析淘汰策略
-	switch cfg.EvictPolicy {
+	switch cfg.EvictionPolicy {
 	case "allkeys-lru":
-		s.SetEvictPolicy(storage.EvictAllKeysLRU)
+		s.SetEvictionPolicy(storage.EvictAllKeysLRU)
 	case "volatile-lru":
-		s.SetEvictPolicy(storage.EvictVolatileLRU)
+		s.SetEvictionPolicy(storage.EvictVolatileLRU)
 	case "allkeys-random":
-		s.SetEvictPolicy(storage.EvictAllKeysRandom)
+		s.SetEvictionPolicy(storage.EvictAllKeysRandom)
 	case "volatile-random":
-		s.SetEvictPolicy(storage.EvictVolatileRandom)
+		s.SetEvictionPolicy(storage.EvictVolatileRandom)
 	default:
-		s.SetEvictPolicy(storage.EvictNoeviction)
+		s.SetEvictionPolicy(storage.EvictNoeviction)
 	}
-	fmt.Printf("* Eviction policy: %s\n", s.GetEvictPolicy())
+	fmt.Printf("* Eviction policy: %s\n", s.GetEvictionPolicy())
 
 	// 启动后台 GC（每分钟清理一次过期键）
 	s.StartGC(time.Minute)
