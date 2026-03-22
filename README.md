@@ -1,137 +1,137 @@
 # kv-cache
 
-一个基于内存的键值存储系统，支持多种数据类型和持久化功能。
+An in-memory key-value store supporting multiple data types and persistence.
 
-## 特性
+## Features
 
-- **多种数据类型**：String、Hash、List、Set、ZSet
-- **过期时间**：支持键的 TTL 设置
-- **持久化**：AOF (Append Only File) 持久化
-- **类型安全**：完整的类型检查，防止操作错误类型
-- **引号支持**：支持带空格的字符串值
+- **Multiple Data Types**: String, Hash, List, Set, ZSet
+- **Expiration**: TTL support for keys
+- **Persistence**: AOF (Append Only File) persistence
+- **Type Safety**: Complete type checking to prevent operations on wrong types
+- **Quote Support**: Supports string values with spaces
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 编译
+# Build
 go build -o kv-cache.exe ./cmd/kv-cache
 
-# 运行
+# Run
 ./kv-cache.exe
 
-# 指定数据目录
+# Specify data directory
 ./kv-cache.exe --data ./mydata
 
-# 禁用持久化
+# Disable persistence
 ./kv-cache.exe --no-persist
 
-# 使用配置文件
+# Use configuration file
 ./kv-cache.exe --config ./config.yaml
 ```
 
-## 支持的命令
+## Supported Commands
 
-### 通用键命令
+### Generic Key Commands
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `SET key value [ttl]` | 设置键值，可选过期时间(秒) | `SET name alice` |
-| `GET key` | 获取键值 | `GET name` |
-| `DEL key [key...]` | 删除一个或多个键 | `DEL name age` |
-| `KEYS [pattern]` | 列出所有键，支持 `*` 通配符 | `KEYS *` `KEYS user:*` |
-| `FLUSHDB` | 清空当前数据库 | `FLUSHDB` |
-| `EXPIRE key ttl` | 设置过期时间(秒) | `EXPIRE name 60` |
-| `TTL key` | 查看剩余过期时间 | `TTL name` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `SET key value [ttl]` | Set key value, optional TTL (seconds) | `SET name alice` |
+| `GET key` | Get key value | `GET name` |
+| `DEL key [key...]` | Delete one or more keys | `DEL name age` |
+| `KEYS [pattern]` | List all keys, supports `*` wildcard | `KEYS *` `KEYS user:*` |
+| `FLUSHDB` | Clear current database | `FLUSHDB` |
+| `EXPIRE key ttl` | Set expiration time (seconds) | `EXPIRE name 60` |
+| `TTL key` | Check remaining expiration time | `TTL name` |
 
-### Hash 命令
+### Hash Commands
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `HSET key field value` | 设置字段值 | `HSET user:1 name bob` |
-| `HGET key field` | 获取字段值 | `HGET user:1 name` |
-| `HGETALL key` | 获取所有字段 | `HGETALL user:1` |
-| `HDEL key field [field...]` | 删除字段 | `HDEL user:1 age` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `HSET key field value` | Set field value | `HSET user:1 name bob` |
+| `HGET key field` | Get field value | `HGET user:1 name` |
+| `HGETALL key` | Get all fields | `HGETALL user:1` |
+| `HDEL key field [field...]` | Delete fields | `HDEL user:1 age` |
 
-### List 命令
+### List Commands
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `LPUSH key value [value...]` | 从左侧插入 | `LPUSH mylist a b c` |
-| `RPUSH key value [value...]` | 从右侧插入 | `RPUSH mylist x y z` |
-| `LPOP key` | 从左侧弹出 | `LPOP mylist` |
-| `RPOP key` | 从右侧弹出 | `RPOP mylist` |
-| `LRANGE key start stop` | 获取范围元素 | `LRANGE mylist 0 -1` |
-| `LLEN key` | 获取列表长度 | `LLEN mylist` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `LPUSH key value [value...]` | Insert from left | `LPUSH mylist a b c` |
+| `RPUSH key value [value...]` | Insert from right | `RPUSH mylist x y z` |
+| `LPOP key` | Pop from left | `LPOP mylist` |
+| `RPOP key` | Pop from right | `RPOP mylist` |
+| `LRANGE key start stop` | Get range of elements | `LRANGE mylist 0 -1` |
+| `LLEN key` | Get list length | `LLEN mylist` |
 
-### Set 命令
+### Set Commands
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `SADD key member [member...]` | 添加成员 | `SADD myset a b c` |
-| `SMEMBERS key` | 获取所有成员 | `SMEMBERS myset` |
-| `SCARD key` | 获取成员数量 | `SCARD myset` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `SADD key member [member...]` | Add members | `SADD myset a b c` |
+| `SMEMBERS key` | Get all members | `SMEMBERS myset` |
+| `SCARD key` | Get member count | `SCARD myset` |
 
-### ZSet 命令
+### ZSet Commands
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `ZADD key score member` | 添加成员 | `ZADD myzset 10 alice` |
-| `ZRANGE key start stop` | 按排名范围获取 | `ZRANGE myzset 0 9` |
-| `ZCARD key` | 获取成员数量 | `ZCARD myzset` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `ZADD key score member` | Add member | `ZADD myzset 10 alice` |
+| `ZRANGE key start stop` | Get by rank range | `ZRANGE myzset 0 9` |
+| `ZCARD key` | Get member count | `ZCARD myzset` |
 
-### 系统命令
+### System Commands
 
-| 命令 | 描述 | 示例 |
-|------|------|------|
-| `CLEAR` | 清空屏幕 | `CLEAR` |
-| `HELP` | 显示帮助信息 | `HELP` |
-| `EXIT` / `QUIT` | 退出程序 | `EXIT` |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `CLEAR` | Clear screen | `CLEAR` |
+| `HELP` | Display help information | `HELP` |
+| `EXIT` / `QUIT` | Exit program | `EXIT` |
 
-## 项目结构
+## Project Structure
 
 ```
 kv-cache/
-├── cmd/kv-cache/           # 主程序入口
+├── cmd/kv-cache/           # Main program entry
 │   └── main.go
 ├── internal/
-│   ├── cli/                # 命令行交互
-│   │   ├── cli.go          # CLI 核心逻辑
-│   │   ├── clear.go        # CLEAR 命令
-│   │   ├── hash.go         # Hash 命令处理
-│   │   ├── keyspace.go     # 键空间命令处理
-│   │   ├── list.go         # List 命令处理
-│   │   ├── set.go          # Set 命令处理
-│   │   ├── string.go       # String 命令处理
-│   │   └── zset.go         # ZSet 命令处理
-│   ├── config/             # 配置管理（基于 viper）
+│   ├── cli/                # Command line interaction
+│   │   ├── cli.go          # CLI core logic
+│   │   ├── clear.go        # CLEAR command
+│   │   ├── hash.go         # Hash command handlers
+│   │   ├── keyspace.go     # Keyspace command handlers
+│   │   ├── list.go         # List command handlers
+│   │   ├── set.go          # Set command handlers
+│   │   ├── string.go       # String command handlers
+│   │   └── zset.go         # ZSet command handlers
+│   ├── config/             # Configuration management (viper-based)
 │   │   ├── config.go
 │   │   └── config_test.go
-│   ├── persist/            # AOF 持久化
-│   │   ├── aof.go          # AOF 文件操作
-│   │   └── sync.go         # 同步策略
-│   └── storage/            # 存储引擎
-│       ├── store.go        # MemoryStore 核心实现
-│       ├── store_test.go   # 存储引擎测试
-│       ├── string.go       # String 命令实现
-│       ├── hash.go         # Hash 命令实现
-│       ├── list.go         # List 命令实现
-│       ├── set.go          # Set 命令实现
-│       ├── zset.go         # ZSet 命令实现
-│       ├── eviction.go     # 内存淘汰策略
-│       ├── gc.go           # 过期键清理
-│       └── types/          # 数据类型定义
-│           ├── value.go    # Value 和 DataType
-│           ├── hash.go     # Hash 类型
-│           ├── list.go     # List 类型
-│           ├── set.go      # Set 类型
-│           ├── zset.go     # ZSet 类型
-│           └── string.go   # 字符串工具
-├── config.yaml             # 配置文件示例
-└── data/                   # 默认数据目录
-    └── appendonly.aof      # AOF 持久化文件
+│   ├── persist/            # AOF persistence
+│   │   ├── aof.go          # AOF file operations
+│   │   └── sync.go         # Sync strategies
+│   └── storage/            # Storage engine
+│       ├── store.go        # MemoryStore core implementation
+│       ├── store_test.go   # Storage engine tests
+│       ├── string.go       # String command implementation
+│       ├── hash.go         # Hash command implementation
+│       ├── list.go         # List command implementation
+│       ├── set.go          # Set command implementation
+│       ├── zset.go         # ZSet command implementation
+│       ├── eviction.go     # Memory eviction policies
+│       ├── gc.go           # Expired key cleanup
+│       └── types/          # Data type definitions
+│           ├── value.go    # Value and DataType
+│           ├── hash.go     # Hash type
+│           ├── list.go     # List type
+│           ├── set.go      # Set type
+│           ├── zset.go     # ZSet type
+│           └── string.go   # String utilities
+├── config.yaml             # Configuration file example
+└── data/                   # Default data directory
+    └── appendonly.aof      # AOF persistence file
 ```
 
-## 使用示例
+## Usage Examples
 
 ```bash
 $ ./kv-cache.exe
@@ -173,10 +173,10 @@ kv-cache> KEYS *
 (empty array)
 
 kv-cache> HELP
-支持的命令:
+Supported commands:
 
-通用键命令:
-  SET key value [ttl]         - 设置键值 (ttl单位为秒)
+Generic Key Commands:
+  SET key value [ttl]         - Set key value (ttl in seconds)
   ...
 kv-cache> CLEAR
 
@@ -184,44 +184,44 @@ kv-cache> EXIT
 Bye!
 ```
 
-## 引号使用说明
+## Quoting Guidelines
 
-支持双引号包裹包含空格的字符串：
+Supports double quotes for strings containing spaces:
 
 ```
-# 正确
+# Correct
 SET msg "hello world"
 HSET user:1 name "John Doe"
 
-# 也支持无引号（不包含空格时）
+# Also supports no quotes (when no spaces)
 SET name alice
 ```
 
-## 配置
+## Configuration
 
-支持三种配置方式（优先级从高到低）：
+Supports three configuration methods (priority from high to low):
 
-1. **命令行参数** - 最高优先级
-2. **环境变量** - 前缀 `KVCACHE_`
-3. **配置文件** - YAML/JSON/TOML 格式
-4. **默认值**
+1. **Command Line Arguments** - Highest priority
+2. **Environment Variables** - Prefix `KVCACHE_`
+3. **Configuration File** - YAML/JSON/TOML format
+4. **Default Values**
 
-### 命令行参数
+### Command Line Arguments
 
 ```bash
 ./kv-cache.exe --help
 
-# 常用参数
-./kv-cache.exe --config ./config.yaml           # 指定配置文件
-./kv-cache.exe --data ./mydata                  # 数据目录
-./kv-cache.exe --no-persist                     # 禁用持久化
-./kv-cache.exe --rewrite-size 134217728         # AOF 重写阈值（字节），0 表示禁用
-./kv-cache.exe --append-only-policy everysec    # AOF 同步策略: always, everysec, no
-./kv-cache.exe --max-memory 104857600           # 最大内存限制（字节），0 表示不限制
-./kv-cache.exe --eviction-policy allkeys-lru    # 内存淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+# Common parameters
+./kv-cache.exe --config ./config.yaml           # Specify configuration file
+./kv-cache.exe --data ./mydata                  # Data directory
+./kv-cache.exe --no-persist                     # Disable persistence
+./kv-cache.exe --rewrite-size 134217728         # AOF rewrite threshold (bytes), 0 to disable
+./kv-cache.exe --append-only-policy everysec    # AOF sync policy: always, everysec, no
+./kv-cache.exe --max-memory 104857600           # Max memory limit (bytes), 0 for unlimited
+./kv-cache.exe --eviction-policy allkeys-lru    # Eviction policy: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
 ```
 
-### 环境变量
+### Environment Variables
 
 ```bash
 # Windows
@@ -234,47 +234,47 @@ export KVCACHE_DATA_DIR=./mydata
 export KVCACHE_MAX_MEMORY=104857600
 ```
 
-### 配置文件
+### Configuration File
 
-创建 `config.yaml`：
+Create `config.yaml`:
 
 ```yaml
-# 服务器配置
-# address: ":6379"  # 监听地址（暂未实现网络服务）
+# Server configuration
+# address: ":6379"  # Listen address (network service not yet implemented)
 
-# 数据目录
+# Data directory
 data-dir: "./data"
 
-# 持久化配置
-no-persist: false              # 是否禁用持久化
-rewrite-size: 67108864         # AOF 自动重写阈值（字节），默认 64MB
-append-only-policy: "everysec" # AOF 同步策略: always, everysec, no
+# Persistence configuration
+no-persist: false              # Whether to disable persistence
+rewrite-size: 67108864         # AOF auto-rewrite threshold (bytes), default 64MB
+append-only-policy: "everysec" # AOF sync policy: always, everysec, no
 
-# 内存配置
-max-memory: 0                  # 最大内存限制（字节），0 表示不限制
-eviction-policy: "allkeys-lru" # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+# Memory configuration
+max-memory: 0                  # Max memory limit (bytes), 0 for unlimited
+eviction-policy: "allkeys-lru" # Eviction policy: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
 ```
 
-参考 `config.yaml` 文件。
+Refer to the `config.yaml` file for details.
 
-## 持久化
+## Persistence
 
-- 数据默认保存在 `./data/appendonly.aof`
-- 启动时自动加载 AOF 文件恢复数据
-- 每次写命令自动追加到 AOF 文件
-- 支持 `FLUSHDB` 清空后文件也会清空
+- Data is saved to `./data/appendonly.aof` by default
+- Automatically loads AOF file to restore data on startup
+- Each write command is automatically appended to the AOF file
+- Supports `FLUSHDB` to clear the file as well
 
-## 退出程序
+## Exiting the Program
 
-- 输入 `EXIT` 或 `QUIT`
-- 按 `Ctrl+C`（信号处理会保存数据）
+- Type `EXIT` or `QUIT`
+- Press `Ctrl+C` (signal handler will save data)
 
-## 开发
+## Development
 
 ```bash
-# 运行测试
+# Run tests
 go test ./...
 
-# 构建
+# Build
 go build -o kv-cache.exe ./cmd/kv-cache
 ```
