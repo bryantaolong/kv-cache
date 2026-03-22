@@ -2,6 +2,7 @@ package storage
 
 import (
 	"math/rand"
+	"strings"
 	"sync"
 
 	"kv-cache/internal/storage/types"
@@ -46,6 +47,22 @@ func (e *Evictor) SetEvictionPolicy(policy EvictionPolicy) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.evictionPolicy = policy
+}
+
+// ParseEvictionPolicy 从字符串解析淘汰策略
+func ParseEvictionPolicy(s string) EvictionPolicy {
+	switch strings.ToLower(s) {
+	case "allkeys-lru":
+		return EvictAllKeysLRU
+	case "volatile-lru":
+		return EvictVolatileLRU
+	case "allkeys-random":
+		return EvictAllKeysRandom
+	case "volatile-random":
+		return EvictVolatileRandom
+	default:
+		return EvictNoeviction // 默认不淘汰
+	}
 }
 
 // GetEvictionPolicy 获取淘汰策略名称
