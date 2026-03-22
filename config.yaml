@@ -7,8 +7,9 @@
 data-dir: "./data"
 
 # 持久化配置
-no-persist: false           # 是否禁用持久化
-rewrite-size: 67108864      # AOF 自动 Rewrite 触发阈值（字节），64MB
+no-persist: false              # 是否禁用持久化
+rewrite-size: 67108864         # AOF 自动 Rewrite 触发阈值（字节），64MB
+append-only-policy: "everysec" # AOF 同步策略: always, everysec[default], no
 
 # 内存配置
 max-memory: 0                # 最大内存限制（字节），0 表示不限制

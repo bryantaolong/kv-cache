@@ -27,6 +27,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.EvictionPolicy != "noeviction" {
 		t.Errorf("expected eviction-policy noeviction, got %s", cfg.EvictionPolicy)
 	}
+	if cfg.AppendOnlyPolicy != "everysec" {
+		t.Errorf("expected append-only-policy everysec, got %s", cfg.AppendOnlyPolicy)
+	}
 }
 
 func TestConfigValidate(t *testing.T) {
@@ -48,9 +51,40 @@ func TestConfigValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				Address:        ":6379",
-				DataDir:        "./data",
-				EvictionPolicy: tt.policy,
+				Address:          ":6379",
+				DataDir:          "./data",
+				EvictionPolicy:   tt.policy,
+				AppendOnlyPolicy: "everysec", // 使用有效值，避免干扰 eviction 测试
+			}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestSyncPolicyValidate(t *testing.T) {
+	tests := []struct {
+		name       string
+		syncPolicy string
+		wantErr    bool
+	}{
+		{"valid always", "always", false},
+		{"valid everysec", "everysec", false},
+		{"valid no", "no", false},
+		{"valid uppercase", "ALWAYS", false},
+		{"invalid policy", "invalid", true},
+		{"empty policy", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Address:          ":6379",
+				DataDir:          "./data",
+				EvictionPolicy:   "noeviction",
+				AppendOnlyPolicy: tt.syncPolicy,
 			}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
@@ -101,6 +135,10 @@ eviction-policy: "allkeys-lru"
 		}
 		if cfg.EvictionPolicy != "allkeys-lru" {
 			t.Errorf("expected eviction-policy allkeys-lru, got %s", cfg.EvictionPolicy)
+		}
+		// append-only-policy 使用默认值
+		if cfg.AppendOnlyPolicy != "everysec" {
+			t.Errorf("expected append-only-policy everysec, got %s", cfg.AppendOnlyPolicy)
 		}
 	})
 

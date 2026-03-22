@@ -23,6 +23,7 @@ func main() {
 	dataDir := flag.String("data", "", "数据目录路径")
 	noPersist := flag.Bool("no-persist", false, "禁用持久化")
 	rewriteSize := flag.Int64("rewrite-size", 0, "AOF 自动 Rewrite 触发阈值（字节），0 表示禁用")
+	appendOnlyPolicy := flag.String("append-only-policy", "", "AOF 同步策略: always, everysec, no")
 	maxMemory := flag.Int64("max-memory", 0, "最大内存限制（字节），0 表示不限制")
 	evictionPolicy := flag.String("eviction-policy", "", "淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random")
 	flag.Parse()
@@ -48,6 +49,9 @@ func main() {
 	if *rewriteSize > 0 {
 		cfg.RewriteSize = *rewriteSize
 	}
+	if *appendOnlyPolicy != "" {
+		cfg.AppendOnlyPolicy = *appendOnlyPolicy
+	}
 	if *maxMemory > 0 {
 		cfg.MaxMemory = *maxMemory
 	}
@@ -65,18 +69,7 @@ func main() {
 	}
 
 	// 解析淘汰策略
-	switch cfg.EvictionPolicy {
-	case "allkeys-lru":
-		s.SetEvictionPolicy(storage.EvictAllKeysLRU)
-	case "volatile-lru":
-		s.SetEvictionPolicy(storage.EvictVolatileLRU)
-	case "allkeys-random":
-		s.SetEvictionPolicy(storage.EvictAllKeysRandom)
-	case "volatile-random":
-		s.SetEvictionPolicy(storage.EvictVolatileRandom)
-	default:
-		s.SetEvictionPolicy(storage.EvictNoeviction)
-	}
+	s.SetEvictionPolicy(storage.ParseEvictionPolicy(cfg.EvictionPolicy))
 	fmt.Printf("* Eviction policy: %s\n", s.GetEvictionPolicy())
 
 	// 启动后台 GC（每分钟清理一次过期键）
@@ -94,6 +87,10 @@ func main() {
 			os.Exit(1)
 		}
 		defer ps.Close()
+
+		// 设置 AOF 同步策略
+		ps.SetSyncPolicy(persist.ParseSyncPolicy(cfg.AppendOnlyPolicy))
+		fmt.Printf("* Append only policy: %s\n", ps.GetSyncPolicy())
 
 		// 更新 CLI 的 persist 引用
 		c.UpdatePersist(ps)

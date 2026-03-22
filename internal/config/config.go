@@ -17,8 +17,9 @@ type Config struct {
 	DataDir string `mapstructure:"data-dir"`
 
 	// 持久化配置
-	NoPersist   bool  `mapstructure:"no-persist"`
-	RewriteSize int64 `mapstructure:"rewrite-size"`
+	NoPersist        bool   `mapstructure:"no-persist"`
+	RewriteSize      int64  `mapstructure:"rewrite-size"`
+	AppendOnlyPolicy string `mapstructure:"append-only-policy"` // AOF 同步策略: always, everysec, no
 
 	// 内存配置
 	MaxMemory      int64  `mapstructure:"max-memory"`
@@ -30,15 +31,17 @@ func DefaultConfig() *Config {
 	return &Config{
 		Address:        ":6379",
 		DataDir:        "./data",
-		NoPersist:      false,
-		RewriteSize:    64 * 1024 * 1024, // 64MB
-		MaxMemory:      0,
-		EvictionPolicy: "noeviction",
+		NoPersist:        false,
+		RewriteSize:      64 * 1024 * 1024, // 64MB
+		AppendOnlyPolicy: "everysec",       // 默认每秒同步，平衡性能与安全
+		MaxMemory:        0,
+		EvictionPolicy:   "noeviction",
 	}
 }
 
 // Validate 验证配置有效性
 func (c *Config) Validate() error {
+	// 验证淘汰策略
 	validPolicies := []string{"noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"}
 	found := false
 	for _, policy := range validPolicies {
@@ -50,6 +53,20 @@ func (c *Config) Validate() error {
 	if !found {
 		return fmt.Errorf("invalid eviction policy: %s", c.EvictionPolicy)
 	}
+
+	// 验证 AOF 同步策略
+	validSyncPolicies := []string{"always", "everysec", "no"}
+	found = false
+	for _, policy := range validSyncPolicies {
+		if strings.ToLower(c.AppendOnlyPolicy) == policy {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("invalid append-only policy: %s", c.AppendOnlyPolicy)
+	}
+
 	return nil
 }
 
@@ -68,6 +85,7 @@ func NewLoader() *Loader {
 	v.SetDefault("data-dir", defaults.DataDir)
 	v.SetDefault("no-persist", defaults.NoPersist)
 	v.SetDefault("rewrite-size", defaults.RewriteSize)
+	v.SetDefault("append-only-policy", defaults.AppendOnlyPolicy)
 	v.SetDefault("max-memory", defaults.MaxMemory)
 	v.SetDefault("eviction-policy", defaults.EvictionPolicy)
 

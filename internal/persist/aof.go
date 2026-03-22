@@ -18,7 +18,8 @@ type Persistence struct {
 	mutex       sync.Mutex
 	running     bool
 	stopChan    chan struct{}
-	rewriteSize int64 // 触发自动 Rewrite 的文件大小阈值（字节）
+	rewriteSize int64   // 触发自动 Rewrite 的文件大小阈值（字节）
+	syncer      *Syncer // 同步策略管理器
 }
 
 // NewPersistence 创建持久化实例
@@ -36,13 +37,21 @@ func NewPersistence(dataDir string) (*Persistence, error) {
 		return nil, fmt.Errorf("failed to open AOF file: %w", err)
 	}
 
-	return &Persistence{
+	p := &Persistence{
 		filepath: filepath,
 		file:     file,
 		writer:   bufio.NewWriter(file),
 		running:  false,
 		stopChan: make(chan struct{}),
-	}, nil
+	}
+
+	// 初始化同步管理器
+	p.syncer = NewSyncer(func() error {
+		return p.file.Sync()
+	})
+	p.syncer.Start()
+
+	return p, nil
 }
 
 // Append 追加命令到 AOF 文件
@@ -52,26 +61,48 @@ func (p *Persistence) Append(command string) error {
 	}
 
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
 
 	// 写入命令（带换行符）
 	if _, err := p.writer.WriteString(command + "\n"); err != nil {
+		p.mutex.Unlock()
 		return fmt.Errorf("failed to write to AOF: %w", err)
 	}
 
-	// 立即刷新（可选：可以改为定期刷新以提高性能）
-	if err := p.writer.Flush(); err != nil {
-		return fmt.Errorf("failed to flush AOF: %w", err)
+	// 根据策略决定是否 flush 到 OS 缓冲区
+	if p.syncer.NeedFlush() {
+		if err := p.writer.Flush(); err != nil {
+			p.mutex.Unlock()
+			return fmt.Errorf("failed to flush AOF: %w", err)
+		}
 	}
 
-	// 同步到磁盘（可选：可以改为每秒同步或让 OS 决定）
-	// 目前为了数据安全，每次写入都 sync
-	// 性能要求高时可以改为 p.file.Sync() 每秒调用一次
-	if err := p.file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync AOF: %w", err)
+	// 根据策略决定是否立即 sync
+	needSync := p.syncer.AfterWrite()
+	if needSync {
+		if err := p.file.Sync(); err != nil {
+			p.mutex.Unlock()
+			return fmt.Errorf("failed to sync AOF: %w", err)
+		}
 	}
 
+	p.mutex.Unlock()
 	return nil
+}
+
+// SetSyncPolicy 设置 AOF 同步策略
+func (p *Persistence) SetSyncPolicy(policy SyncPolicy) {
+	if p == nil || p.syncer == nil {
+		return
+	}
+	p.syncer.SetPolicy(policy)
+}
+
+// GetSyncPolicy 获取当前 AOF 同步策略
+func (p *Persistence) GetSyncPolicy() string {
+	if p == nil || p.syncer == nil {
+		return "unknown"
+	}
+	return p.syncer.GetPolicy().String()
 }
 
 // Load 加载 AOF 文件并执行
@@ -148,6 +179,11 @@ func (p *Persistence) Close() error {
 
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+
+	// 停止后台 sync 协程
+	if p.syncer != nil {
+		p.syncer.Stop()
+	}
 
 	// 刷新缓冲区
 	if err := p.writer.Flush(); err != nil {
