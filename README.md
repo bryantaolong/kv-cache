@@ -68,7 +68,6 @@ go build -o kv-cache.exe ./cmd/kv-cache
 | 命令 | 描述 | 示例 |
 |------|------|------|
 | `SADD key member [member...]` | 添加成员 | `SADD myset a b c` |
-| `SREM key member [member...]` | 移除成员 | `SREM myset a` |
 | `SMEMBERS key` | 获取所有成员 | `SMEMBERS myset` |
 | `SCARD key` | 获取成员数量 | `SCARD myset` |
 
@@ -77,7 +76,6 @@ go build -o kv-cache.exe ./cmd/kv-cache
 | 命令 | 描述 | 示例 |
 |------|------|------|
 | `ZADD key score member` | 添加成员 | `ZADD myzset 10 alice` |
-| `ZREM key member [member...]` | 移除成员 | `ZREM myzset alice` |
 | `ZRANGE key start stop` | 按排名范围获取 | `ZRANGE myzset 0 9` |
 | `ZCARD key` | 获取成员数量 | `ZCARD myzset` |
 
@@ -97,14 +95,30 @@ kv-cache/
 │   └── main.go
 ├── internal/
 │   ├── cli/                # 命令行交互
-│   │   └── cli.go
+│   │   ├── cli.go          # CLI 核心逻辑
+│   │   ├── clear.go        # CLEAR 命令
+│   │   ├── hash.go         # Hash 命令处理
+│   │   ├── keyspace.go     # 键空间命令处理
+│   │   ├── list.go         # List 命令处理
+│   │   ├── set.go          # Set 命令处理
+│   │   ├── string.go       # String 命令处理
+│   │   └── zset.go         # ZSet 命令处理
 │   ├── config/             # 配置管理（基于 viper）
-│   │   └── config.go
+│   │   ├── config.go
+│   │   └── config_test.go
 │   ├── persist/            # AOF 持久化
-│   │   └── aof.go
+│   │   ├── aof.go          # AOF 文件操作
+│   │   └── sync.go         # 同步策略
 │   └── storage/            # 存储引擎
-│       ├── store.go        # MemoryStore 实现
-│       ├── store_*.go      # 各数据类型命令
+│       ├── store.go        # MemoryStore 核心实现
+│       ├── store_test.go   # 存储引擎测试
+│       ├── string.go       # String 命令实现
+│       ├── hash.go         # Hash 命令实现
+│       ├── list.go         # List 命令实现
+│       ├── set.go          # Set 命令实现
+│       ├── zset.go         # ZSet 命令实现
+│       ├── eviction.go     # 内存淘汰策略
+│       ├── gc.go           # 过期键清理
 │       └── types/          # 数据类型定义
 │           ├── value.go    # Value 和 DataType
 │           ├── hash.go     # Hash 类型
@@ -198,12 +212,13 @@ SET name alice
 ./kv-cache.exe --help
 
 # 常用参数
-./kv-cache.exe --config ./config.yaml      # 指定配置文件
-./kv-cache.exe --data ./mydata             # 数据目录
-./kv-cache.exe --no-persist                # 禁用持久化
-./kv-cache.exe --rewrite-size 134217728    # AOF 重写阈值（字节）
-./kv-cache.exe --max-memory 104857600       # 最大内存限制（字节）
-./kv-cache.exe --eviction-policy allkeys-lru  # 内存淘汰策略
+./kv-cache.exe --config ./config.yaml           # 指定配置文件
+./kv-cache.exe --data ./mydata                  # 数据目录
+./kv-cache.exe --no-persist                     # 禁用持久化
+./kv-cache.exe --rewrite-size 134217728         # AOF 重写阈值（字节），0 表示禁用
+./kv-cache.exe --append-only-policy everysec    # AOF 同步策略: always, everysec, no
+./kv-cache.exe --max-memory 104857600           # 最大内存限制（字节），0 表示不限制
+./kv-cache.exe --eviction-policy allkeys-lru    # 内存淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
 ```
 
 ### 环境变量
@@ -225,18 +240,19 @@ export KVCACHE_MAX_MEMORY=104857600
 
 ```yaml
 # 服务器配置
-address: ":6379"
+# address: ":6379"  # 监听地址（暂未实现网络服务）
 
 # 数据目录
 data-dir: "./data"
 
 # 持久化配置
-no-persist: false           # 是否禁用持久化
-rewrite-size: 67108864      # AOF 自动重写阈值（字节），默认 64MB
+no-persist: false              # 是否禁用持久化
+rewrite-size: 67108864         # AOF 自动重写阈值（字节），默认 64MB
+append-only-policy: "everysec" # AOF 同步策略: always, everysec, no
 
 # 内存配置
-max-memory: 0                # 最大内存限制（字节），0 表示不限制
-eviction-policy: "noeviction"  # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+max-memory: 0                  # 最大内存限制（字节），0 表示不限制
+eviction-policy: "allkeys-lru" # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
 ```
 
 参考 `config.yaml` 文件。
