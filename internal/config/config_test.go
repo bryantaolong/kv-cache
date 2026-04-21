@@ -24,8 +24,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.MaxMemory != 0 {
 		t.Errorf("expected max-memory 0, got %d", cfg.MaxMemory)
 	}
-	if cfg.EvictionPolicy != "noeviction" {
-		t.Errorf("expected eviction-policy noeviction, got %s", cfg.EvictionPolicy)
+	if cfg.EvictionPolicy != "lru" {
+		t.Errorf("expected eviction-policy lru, got %s", cfg.EvictionPolicy)
 	}
 	if cfg.AppendOnlyPolicy != "everysec" {
 		t.Errorf("expected append-only-policy everysec, got %s", cfg.AppendOnlyPolicy)
@@ -38,12 +38,10 @@ func TestConfigValidate(t *testing.T) {
 		policy  string
 		wantErr bool
 	}{
-		{"valid noeviction", "noeviction", false},
-		{"valid allkeys-lru", "allkeys-lru", false},
-		{"valid volatile-lru", "volatile-lru", false},
-		{"valid allkeys-random", "allkeys-random", false},
-		{"valid volatile-random", "volatile-random", false},
-		{"valid uppercase", "ALLKEYS-LRU", false},
+		{"valid no-eviction", "no-eviction", false},
+		{"valid lru", "lru", false},
+		{"valid random", "random", false},
+		{"valid uppercase", "LRU", false},
 		{"invalid policy", "invalid", true},
 		{"empty policy", "", true},
 	}
@@ -83,7 +81,7 @@ func TestSyncPolicyValidate(t *testing.T) {
 			cfg := &Config{
 				Address:          ":6379",
 				DataDir:          "./data",
-				EvictionPolicy:   "noeviction",
+				EvictionPolicy:   "lru",
 				AppendOnlyPolicy: tt.syncPolicy,
 			}
 			err := cfg.Validate()
@@ -106,7 +104,7 @@ data-dir: "./test-data"
 no-persist: true
 rewrite-size: 134217728
 max-memory: 104857600
-eviction-policy: "allkeys-lru"
+eviction-policy: "lru"
 `
 		configFile := filepath.Join(tmpDir, "config.yaml")
 		if err := os.WriteFile(configFile, []byte(configContent), 0644); err != nil {
@@ -133,8 +131,8 @@ eviction-policy: "allkeys-lru"
 		if cfg.MaxMemory != 104857600 {
 			t.Errorf("expected max-memory 104857600, got %d", cfg.MaxMemory)
 		}
-		if cfg.EvictionPolicy != "allkeys-lru" {
-			t.Errorf("expected eviction-policy allkeys-lru, got %s", cfg.EvictionPolicy)
+		if cfg.EvictionPolicy != "lru" {
+			t.Errorf("expected eviction-policy lru, got %s", cfg.EvictionPolicy)
 		}
 		// append-only-policy 使用默认值
 		if cfg.AppendOnlyPolicy != "everysec" {

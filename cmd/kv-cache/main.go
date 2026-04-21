@@ -25,7 +25,7 @@ func main() {
 	rewriteSize := flag.Int64("rewrite-size", 0, "AOF 自动 Rewrite 触发阈值（字节），0 表示禁用")
 	appendOnlyPolicy := flag.String("append-only-policy", "", "AOF 同步策略: always, everysec, no")
 	maxMemory := flag.Int64("max-memory", 0, "最大内存限制（字节），0 表示不限制")
-	evictionPolicy := flag.String("eviction-policy", "", "淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random")
+	evictionPolicy := flag.String("eviction-policy", "", "淘汰策略: no-eviction, lru, random")
 	flag.Parse()
 
 	// 创建配置加载器

@@ -29,20 +29,20 @@ type Config struct {
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		Address:        ":6379",
-		DataDir:        "./data",
+		Address:          ":6379",
+		DataDir:          "./data",
 		NoPersist:        false,
 		RewriteSize:      64 * 1024 * 1024, // 64MB
 		AppendOnlyPolicy: "everysec",       // 默认每秒同步，平衡性能与安全
 		MaxMemory:        0,
-		EvictionPolicy:   "noeviction",
+		EvictionPolicy:   "lru",
 	}
 }
 
 // Validate 验证配置有效性
 func (c *Config) Validate() error {
 	// 验证淘汰策略
-	validPolicies := []string{"noeviction", "allkeys-lru", "volatile-lru", "allkeys-random", "volatile-random"}
+	validPolicies := []string{"no-eviction", "lru", "random"}
 	found := false
 	for _, policy := range validPolicies {
 		if strings.ToLower(c.EvictionPolicy) == policy {

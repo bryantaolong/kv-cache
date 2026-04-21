@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"kv-cache/internal/storage/types"
 )
@@ -12,11 +13,9 @@ import (
 type EvictionPolicy int
 
 const (
-	EvictNoeviction     EvictionPolicy = iota // 不淘汰
-	EvictAllKeysLRU                           // 所有键 LRU
-	EvictVolatileLRU                          // 带过期键 LRU
-	EvictAllKeysRandom                        // 所有键随机
-	EvictVolatileRandom                       // 带过期键随机
+	EvictNoEviction EvictionPolicy = iota // 不淘汰
+	EvictLRU                              // LRU
+	EvictRandom                           // 随机
 )
 
 // Evictor 淘汰器
@@ -31,7 +30,7 @@ type Evictor struct {
 func NewEvictor(dataFunc func() map[string]*types.Value) *Evictor {
 	return &Evictor{
 		data:           dataFunc,
-		evictionPolicy: EvictNoeviction,
+		evictionPolicy: EvictLRU, // 默认 LRU
 	}
 }
 
@@ -52,16 +51,12 @@ func (e *Evictor) SetEvictionPolicy(policy EvictionPolicy) {
 // ParseEvictionPolicy 从字符串解析淘汰策略
 func ParseEvictionPolicy(s string) EvictionPolicy {
 	switch strings.ToLower(s) {
-	case "allkeys-lru":
-		return EvictAllKeysLRU
-	case "volatile-lru":
-		return EvictVolatileLRU
-	case "allkeys-random":
-		return EvictAllKeysRandom
-	case "volatile-random":
-		return EvictVolatileRandom
+	case "lru":
+		return EvictLRU
+	case "random":
+		return EvictRandom
 	default:
-		return EvictNoeviction // 默认不淘汰
+		return EvictLRU // 默认LRU
 	}
 }
 
@@ -70,16 +65,12 @@ func (e *Evictor) GetEvictionPolicy() string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	switch e.evictionPolicy {
-	case EvictNoeviction:
-		return "noeviction"
-	case EvictAllKeysLRU:
-		return "allkeys-lru"
-	case EvictVolatileLRU:
-		return "volatile-lru"
-	case EvictAllKeysRandom:
-		return "allkeys-random"
-	case EvictVolatileRandom:
-		return "volatile-random"
+	case EvictNoEviction:
+		return "no-eviction"
+	case EvictLRU:
+		return "lru"
+	case EvictRandom:
+		return "random"
 	default:
 		return "unknown"
 	}
@@ -92,7 +83,7 @@ func (e *Evictor) EvictIfNeeded() {
 	policy := e.evictionPolicy
 	e.mu.RUnlock()
 
-	if maxMemory <= 0 || policy == EvictNoeviction {
+	if maxMemory <= 0 || policy == EvictNoEviction {
 		return
 	}
 
@@ -158,19 +149,23 @@ func (e *Evictor) doEvict() bool {
 		return false
 	}
 
+	// 先清理过期键
+	e.cleanup(data)
+
+	// 如果清理后数据为空，返回 false
+	if len(data) == 0 {
+		return false
+	}
+
 	e.mu.RLock()
 	policy := e.evictionPolicy
 	e.mu.RUnlock()
 
 	var candidates []string
 	switch policy {
-	case EvictAllKeysLRU, EvictVolatileLRU:
+	case EvictLRU:
+		// 收集所有键（清理后剩余的键）
 		for key := range data {
-			if policy == EvictVolatileLRU {
-				if val, ok := data[key]; !ok || val.ExpireAt == nil {
-					continue
-				}
-			}
 			candidates = append(candidates, key)
 		}
 
@@ -178,7 +173,7 @@ func (e *Evictor) doEvict() bool {
 			return false
 		}
 
-		// 随机淘汰
+		// 简化：随机从候选中选
 		if len(candidates) > 3 {
 			candidates = candidates[:3]
 		}
@@ -186,13 +181,9 @@ func (e *Evictor) doEvict() bool {
 		key := candidates[idx]
 		delete(data, key)
 
-	case EvictAllKeysRandom, EvictVolatileRandom:
+	case EvictRandom:
+		// 收集所有键
 		for key := range data {
-			if policy == EvictVolatileRandom {
-				if val, ok := data[key]; !ok || val.ExpireAt == nil {
-					continue
-				}
-			}
 			candidates = append(candidates, key)
 		}
 
@@ -209,4 +200,20 @@ func (e *Evictor) doEvict() bool {
 	}
 
 	return true
+}
+
+// cleanup 清理过期键
+func (e *Evictor) cleanup(data map[string]*types.Value) {
+	now := time.Now()
+	expiredKeys := make([]string, 0)
+
+	for key, val := range data {
+		if val != nil && val.ExpireAt != nil && now.After(*val.ExpireAt) {
+			expiredKeys = append(expiredKeys, key)
+		}
+	}
+
+	for _, key := range expiredKeys {
+		delete(data, key)
+	}
 }

@@ -13,4 +13,4 @@ append-only-policy: "everysec" # AOF 同步策略: always, everysec[default], no
 
 # 内存配置
 max-memory: 0                # 最大内存限制（字节），0 表示不限制
-eviction-policy: "allkeys-lru" # 淘汰策略: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+eviction-policy: "lru" # 淘汰策略: no-eviction, lru(当前为简化实现), random

@@ -117,7 +117,7 @@ kv-cache/
 │       ├── list.go         # List command implementation
 │       ├── set.go          # Set command implementation
 │       ├── zset.go         # ZSet command implementation
-│       ├── eviction.go     # Memory eviction policies
+│       ├── evictor.go      # Memory eviction policies
 │       ├── gc.go           # Expired key cleanup
 │       └── types/          # Data type definitions
 │           ├── value.go    # Value and DataType
@@ -218,7 +218,7 @@ Supports three configuration methods (priority from high to low):
 ./kv-cache.exe --rewrite-size 134217728         # AOF rewrite threshold (bytes), 0 to disable
 ./kv-cache.exe --append-only-policy everysec    # AOF sync policy: always, everysec, no
 ./kv-cache.exe --max-memory 104857600           # Max memory limit (bytes), 0 for unlimited
-./kv-cache.exe --eviction-policy allkeys-lru    # Eviction policy: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+./kv-cache.exe --eviction-policy lru    # Eviction policy: no-eviction, lru (currently simplified), random
 ```
 
 ### Environment Variables
@@ -227,7 +227,7 @@ Supports three configuration methods (priority from high to low):
 # Windows
 set KVCACHE_DATA_DIR=./mydata
 set KVCACHE_MAX_MEMORY=104857600
-set KVCACHE_EVICTION_POLICY=allkeys-lru
+set KVCACHE_EVICTION_POLICY=lru
 
 # Linux/macOS
 export KVCACHE_DATA_DIR=./mydata
@@ -252,7 +252,7 @@ append-only-policy: "everysec" # AOF sync policy: always, everysec, no
 
 # Memory configuration
 max-memory: 0                  # Max memory limit (bytes), 0 for unlimited
-eviction-policy: "allkeys-lru" # Eviction policy: noeviction, allkeys-lru, volatile-lru, allkeys-random, volatile-random
+eviction-policy: "lru" # Eviction policy: no-eviction, lru (currently simplified), random
 ```
 
 Refer to the `config.yaml` file for details.
