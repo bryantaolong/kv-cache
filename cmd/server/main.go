@@ -2,24 +2,24 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
-	"kv-cache/internal/cli"
+	"kv-cache/internal/command"
 	"kv-cache/internal/config"
 	persist "kv-cache/internal/persist"
 	storage "kv-cache/internal/storage"
+	"kv-cache/internal/transport"
 )
 
-// DefaultConfigPath 默认配置文件路径
-const DefaultConfigPath = "./config.yaml"
+const defaultAddr = ":27926"
 
 func main() {
-	// 命令行参数（优先级高于配置文件）
-	configPath := flag.String("config", DefaultConfigPath, "配置文件路径")
+	configPath := flag.String("config", "./config.yaml", "配置文件路径")
 	dataDir := flag.String("data", "", "数据目录路径")
 	noPersist := flag.Bool("no-persist", false, "禁用持久化")
 	rewriteSize := flag.Int64("rewrite-size", 0, "AOF 自动 Rewrite 触发阈值（字节），0 表示禁用")
@@ -28,18 +28,14 @@ func main() {
 	evictionPolicy := flag.String("eviction-policy", "", "淘汰策略: no-eviction, lru, random")
 	flag.Parse()
 
-	// 创建配置加载器
 	loader := config.NewLoader()
 	loader.SetConfigFile(*configPath)
 
-	// 加载配置
 	cfg, err := loader.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// 命令行参数覆盖配置文件
 	if *dataDir != "" {
 		cfg.DataDir = *dataDir
 	}
@@ -59,81 +55,76 @@ func main() {
 		cfg.EvictionPolicy = *evictionPolicy
 	}
 
-	// 创建存储引擎
 	s := storage.NewMemoryStore()
 
-	// 设置内存限制和淘汰策略
 	if cfg.MaxMemory > 0 {
 		s.SetMaxMemory(cfg.MaxMemory)
-		fmt.Printf("* MaxMemory set to %d bytes\n", cfg.MaxMemory)
+		log.Printf("* MaxMemory set to %d bytes", cfg.MaxMemory)
 	}
 
-	// 解析淘汰策略
 	s.SetEvictionPolicy(storage.ParseEvictionPolicy(cfg.EvictionPolicy))
-	fmt.Printf("* Eviction policy: %s\n", s.GetEvictionPolicy())
+	log.Printf("* Eviction policy: %s", s.GetEvictionPolicy())
 
-	// 启动后台 GC（每分钟清理一次过期键）
 	s.StartGC(time.Minute)
 
-	// 创建 CLI
-	c := cli.NewCLI(s, nil, os.Stdin, os.Stdout, true)
-
-	// 创建持久化模块
 	var ps *persist.Persistence
 	if !cfg.NoPersist {
 		ps, err = persist.NewPersistence(cfg.DataDir)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to initialize persistence: %v\n", err)
-			os.Exit(1)
+			log.Fatalf("Failed to initialize persistence: %v", err)
 		}
 		defer ps.Close()
 
-		// 设置 AOF 同步策略
 		ps.SetSyncPolicy(persist.ParseSyncPolicy(cfg.AppendOnlyPolicy))
-		fmt.Printf("* Append only policy: %s\n", ps.GetSyncPolicy())
-
-		// 更新 CLI 的 persist 引用
-		c.UpdatePersist(ps)
-
-		// 启动自动 AOF Rewrite（每分钟检查一次）
-		if cfg.RewriteSize > 0 {
-			ps.StartAutoRewrite(cfg.RewriteSize, time.Minute, func() []string {
-				return c.Export()
-			})
-		}
+		log.Printf("* Append only policy: %s", ps.GetSyncPolicy())
 	}
 
-	// 加载已有数据
-	if ps != nil {
-		if err := c.LoadData(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to load data: %v\n", err)
-		}
+	executor := command.NewExecutor(s, ps)
+	loadData(executor, ps)
+
+	if cfg.RewriteSize > 0 && ps != nil {
+		ps.StartAutoRewrite(cfg.RewriteSize, time.Minute, func() []string {
+			return executor.Export()
+		})
 	}
 
-	// 设置信号处理
+	server := transport.NewServer(executor, defaultAddr)
+	if err := server.Start(); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-sigChan
-		fmt.Println("\n* Saving data...")
+		log.Println("\n* Saving data...")
 		if ps != nil {
 			ps.Close()
 			ps.StopAutoRewrite()
 		}
 		s.StopGC()
-		fmt.Println("* Bye!")
+		server.Close()
+		log.Println("* Bye!")
 		os.Exit(0)
 	}()
 
-	// 运行 CLI
-	if err := c.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-	}
+	select {}
+}
 
-	if ps != nil {
-		ps.Close()
-		ps.StopAutoRewrite()
+func loadData(executor *command.Executor, ps *persist.Persistence) {
+	if ps == nil {
+		return
 	}
-	s.StopGC()
+	executor.SetLoading(true)
+	defer executor.SetLoading(false)
+	if err := ps.Load(func(cmd string) error {
+		parts := strings.Fields(cmd)
+		if len(parts) == 0 {
+			return nil
+		}
+		return executor.ExecuteSilent(parts)
+	}); err != nil {
+		log.Printf("Failed to load data: %v", err)
+	}
 }

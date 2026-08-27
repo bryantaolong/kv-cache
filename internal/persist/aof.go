@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -126,10 +127,10 @@ func (p *Persistence) Load(executor func(string) error) error {
 			case <-stopAnimation:
 				return
 			case <-time.After(time.Second):
-				fmt.Print(".")
+				log.Print(".")
 				count++
 				if count >= 6 {
-					fmt.Print("\r      \r") // 清行并回到行首
+					log.Print("\r      \r") // 清行并回到行首
 					count = 0
 				}
 			}
@@ -155,14 +156,14 @@ func (p *Persistence) Load(executor func(string) error) error {
 
 		if err := executor(command); err != nil {
 			// 加载时遇到错误，打印警告但继续
-			fmt.Fprintf(os.Stderr, "Warning: failed to execute command [%s]: %v\n", command, err)
+			log.Printf("Warning: failed to execute command [%s]: %v", command, err)
 		}
 	}
 
 	// 停止动画
 	stopAnimation <- true
 	// 清除残留的句号
-	fmt.Print("\r      \r")
+	log.Print("\r      \r")
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("failed to read AOF: %w", err)
@@ -344,11 +345,11 @@ func (p *Persistence) StopAutoRewrite() {
 func (p *Persistence) checkAndRewrite(exportFunc func() []string) {
 	size := p.GetSize()
 	if size >= p.rewriteSize {
-		fmt.Printf("* AOF file size (%d bytes) >= threshold (%d bytes), triggering rewrite...\n", size, p.rewriteSize)
+		log.Printf("* AOF file size (%d bytes) >= threshold (%d bytes), triggering rewrite...", size, p.rewriteSize)
 		if err := p.rewrite(exportFunc); err != nil {
-			fmt.Fprintf(os.Stderr, "Auto rewrite failed: %v\n", err)
+			log.Printf("Auto rewrite failed: %v", err)
 		} else {
-			fmt.Printf("* Rewrite completed, new file size: %d bytes\n", p.GetSize())
+			log.Printf("* Rewrite completed, new file size: %d bytes", p.GetSize())
 		}
 	}
 }
