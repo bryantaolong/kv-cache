@@ -7,9 +7,47 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
+
+// SyncPolicy AOF 同步策略
+type SyncPolicy int
+
+const (
+	SyncAlways   SyncPolicy = iota // 每次写入都 fsync
+	SyncEverySec                   // 每秒 fsync 一次
+	SyncNo                         // 不主动 fsync，依赖 OS
+)
+
+// String 返回策略名称
+func (s SyncPolicy) String() string {
+	switch s {
+	case SyncAlways:
+		return "always"
+	case SyncEverySec:
+		return "everysec"
+	case SyncNo:
+		return "no"
+	default:
+		return "unknown"
+	}
+}
+
+// ParseSyncPolicy 从字符串解析同步策略
+func ParseSyncPolicy(s string) SyncPolicy {
+	switch strings.ToLower(s) {
+	case "always":
+		return SyncAlways
+	case "everysec":
+		return SyncEverySec
+	case "no":
+		return SyncNo
+	default:
+		return SyncEverySec // 默认使用 everysec
+	}
+}
 
 // Persistence 处理 AOF 持久化
 type Persistence struct {
@@ -19,8 +57,14 @@ type Persistence struct {
 	mutex       sync.Mutex
 	running     bool
 	stopChan    chan struct{}
-	rewriteSize int64   // 触发自动 Rewrite 的文件大小阈值（字节）
-	syncer      *Syncer // 同步策略管理器
+	rewriteSize int64 // 触发自动 Rewrite 的文件大小阈值（字节）
+	closed      bool
+
+	policy       SyncPolicy
+	needSync     bool
+	syncTicker   *time.Ticker
+	stopSyncChan chan struct{}
+	runningSync bool
 }
 
 // NewPersistence 创建持久化实例
@@ -39,18 +83,15 @@ func NewPersistence(dataDir string) (*Persistence, error) {
 	}
 
 	p := &Persistence{
-		filepath: filepath,
-		file:     file,
-		writer:   bufio.NewWriter(file),
-		running:  false,
-		stopChan: make(chan struct{}),
+		filepath:    filepath,
+		file:       file,
+		writer:     bufio.NewWriter(file),
+		running:    false,
+		stopChan:   make(chan struct{}),
+		policy:     SyncEverySec, // 默认策略
+		stopSyncChan: make(chan struct{}),
 	}
-
-	// 初始化同步管理器
-	p.syncer = NewSyncer(func() error {
-		return p.file.Sync()
-	})
-	p.syncer.Start()
+	p.startSync()
 
 	return p, nil
 }
@@ -62,48 +103,135 @@ func (p *Persistence) Append(command string) error {
 	}
 
 	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	if p.closed || p.writer == nil || p.file == nil {
+		return fmt.Errorf("persistence closed")
+	}
 
 	// 写入命令（带换行符）
 	if _, err := p.writer.WriteString(command + "\n"); err != nil {
-		p.mutex.Unlock()
 		return fmt.Errorf("failed to write to AOF: %w", err)
 	}
 
 	// 根据策略决定是否 flush 到 OS 缓冲区
-	if p.syncer.NeedFlush() {
+	if p.NeedFlush() {
 		if err := p.writer.Flush(); err != nil {
-			p.mutex.Unlock()
 			return fmt.Errorf("failed to flush AOF: %w", err)
 		}
 	}
 
 	// 根据策略决定是否立即 sync
-	needSync := p.syncer.AfterWrite()
-	if needSync {
+	if p.AfterWrite() {
 		if err := p.file.Sync(); err != nil {
-			p.mutex.Unlock()
 			return fmt.Errorf("failed to sync AOF: %w", err)
 		}
 	}
 
-	p.mutex.Unlock()
 	return nil
+}
+
+// NeedFlush 是否需要执行 Flush（always 和 everysec 需要 flush 到 OS 缓冲区）
+func (p *Persistence) NeedFlush() bool {
+	return p.policy == SyncAlways || p.policy == SyncEverySec
+}
+
+// AfterWrite 写入后根据策略执行相应操作
+// 返回值：是否需要立即执行 sync（always 模式返回 true）
+func (p *Persistence) AfterWrite() bool {
+	switch p.policy {
+	case SyncAlways:
+		return true // 调用者需要立即执行 sync
+	case SyncEverySec:
+		// 标记需要 sync，由后台协程处理
+		p.needSync = true
+		return false
+	case SyncNo:
+		return false
+	default:
+		return false
+	}
+}
+
+// startSync 启动后台同步协程（用于 everysec 模式）
+func (p *Persistence) startSync() {
+	p.mutex.Lock()
+	if p.runningSync || p.policy != SyncEverySec {
+		p.mutex.Unlock()
+		return
+	}
+	p.runningSync = true
+	p.syncTicker = time.NewTicker(time.Second)
+	p.mutex.Unlock()
+
+	go func() {
+		for {
+			select {
+			case <-p.stopSyncChan:
+				p.mutex.Lock()
+				p.syncTicker.Stop()
+				p.runningSync = false
+				p.mutex.Unlock()
+				return
+			case <-p.syncTicker.C:
+				p.doSync()
+			}
+		}
+	}()
+}
+
+// doSync 执行实际的 sync 操作
+func (p *Persistence) doSync() {
+	p.mutex.Lock()
+	need := p.needSync
+	p.needSync = false
+	p.mutex.Unlock()
+
+	if need && p.file != nil {
+		p.file.Sync()
+	}
+}
+
+// stopSync 停止后台同步协程
+func (p *Persistence) stopSync() {
+	p.mutex.Lock()
+	if !p.runningSync {
+		p.mutex.Unlock()
+		return
+	}
+	p.mutex.Unlock()
+
+	select {
+	case p.stopSyncChan <- struct{}{}:
+	default:
+	}
 }
 
 // SetSyncPolicy 设置 AOF 同步策略
 func (p *Persistence) SetSyncPolicy(policy SyncPolicy) {
-	if p == nil || p.syncer == nil {
+	if p == nil {
 		return
 	}
-	p.syncer.SetPolicy(policy)
+
+	p.mutex.Lock()
+	p.policy = policy
+	p.mutex.Unlock()
+
+	if policy == SyncEverySec {
+		p.startSync()
+	} else {
+		p.stopSync()
+	}
 }
 
 // GetSyncPolicy 获取当前 AOF 同步策略
 func (p *Persistence) GetSyncPolicy() string {
-	if p == nil || p.syncer == nil {
+	if p == nil {
 		return "unknown"
 	}
-	return p.syncer.GetPolicy().String()
+	p.mutex.Lock()
+	policy := p.policy
+	p.mutex.Unlock()
+	return policy.String()
 }
 
 // Load 加载 AOF 文件并执行
@@ -178,21 +306,29 @@ func (p *Persistence) Close() error {
 		return nil
 	}
 
+	p.stopSync()
+	p.StopAutoRewrite()
+
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	// 停止后台 sync 协程
-	if p.syncer != nil {
-		p.syncer.Stop()
+	if p.closed {
+		return nil
 	}
+
+	p.closed = true
 
 	// 刷新缓冲区
-	if err := p.writer.Flush(); err != nil {
-		return err
-	}
+	_ = p.writer.Flush()
+
+	// 持久化到磁盘，避免关闭前丢失 AOF 记录
+	_ = p.file.Sync()
 
 	// 关闭文件
-	return p.file.Close()
+	err := p.file.Close()
+	p.file = nil
+	p.writer = nil
+	return err
 }
 
 // Rewrite 重写 AOF 文件（压缩）
@@ -206,13 +342,24 @@ func (p *Persistence) rewrite(exportFunc func() []string) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
+	if p.file == nil || p.writer == nil {
+		file, err := os.OpenFile(p.filepath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+		p.file = file
+		p.writer = bufio.NewWriter(file)
+		p.closed = false
+	}
+
 	// 获取当前数据导出
 	commands := exportFunc()
 	if len(commands) == 0 {
 		// 没有数据，清空 AOF
-		p.file.Close()
-		os.Remove(p.filepath)
-		file, err := os.OpenFile(p.filepath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		_ = p.writer.Flush()
+		_ = p.file.Close()
+
+		file, err := os.OpenFile(p.filepath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}

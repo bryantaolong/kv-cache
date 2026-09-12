@@ -11,70 +11,68 @@ import (
 type MemoryStore struct {
 	data    map[string]*types.Value
 	mu      sync.RWMutex
-	gc      *GC
 	evictor *Evictor
+	stopGC  chan struct{}
 }
 
 // NewMemoryStore 创建一个新的存储实例
 func NewMemoryStore() *MemoryStore {
-	s := &MemoryStore{
+	return &MemoryStore{
 		data:    make(map[string]*types.Value),
-		mu:      sync.RWMutex{},
-		gc:      nil,
-		evictor: nil,
+		evictor: NewEvictor(),
+		stopGC:  make(chan struct{}),
 	}
-
-	// 初始化 GC 和 Evictor
-	s.gc = NewGC(func() map[string]*types.Value {
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-		return s.data
-	})
-
-	s.evictor = NewEvictor(func() map[string]*types.Value {
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-		return s.data
-	})
-
-	return s
 }
 
 // Get 获取值（注意：要检查过期）
 func (s *MemoryStore) Get(key string) (types.Value, bool) {
 	s.mu.RLock()
 	val, exists := s.data[key]
-	s.mu.RUnlock()
-
-	if !exists {
+	if !exists || val == nil {
+		s.mu.RUnlock()
 		return types.Value{}, false
 	}
+	ret := *val
+	expired := ret.ExpireAt != nil && time.Now().After(*ret.ExpireAt)
+	s.mu.RUnlock()
 
-	// 检查过期
-	if val.ExpireAt != nil && time.Now().After(*val.ExpireAt) {
+	if expired {
 		s.mu.Lock()
 		delete(s.data, key)
 		s.mu.Unlock()
 		return types.Value{}, false
 	}
 
-	return *val, true
+	ret.AccessedAt = time.Now()
+	s.mu.Lock()
+	s.data[key] = &ret
+	s.mu.Unlock()
+
+	return ret, true
 }
 
 // Set 设置值
 func (s *MemoryStore) Set(key string, value types.Value, ttl time.Duration) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if ttl > 0 {
 		expireAt := time.Now().Add(ttl)
 		value.ExpireAt = &expireAt
 	}
-
 	s.data[key] = &value
+	s.mu.Unlock()
 
-	// 检查是否需要淘汰数据
-	s.evictor.EvictIfNeeded()
+	// 先让 evictor 只返回候选 key，不直接删 map；再由 store 在锁内批量删除。
+	s.mu.RLock()
+	targets := s.evictor.SelectEvictionTargets(s.data)
+	s.mu.RUnlock()
+
+	if len(targets) > 0 {
+		s.mu.Lock()
+		for _, key := range targets {
+			delete(s.data, key)
+		}
+		s.mu.Unlock()
+	}
 
 	return nil
 }
@@ -167,12 +165,39 @@ func (s *MemoryStore) DBSize() int {
 
 // StartGC 启动后台 Goroutine 定期清理过期键
 func (s *MemoryStore) StartGC(interval time.Duration) {
-	s.gc.Start(interval)
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.stopGC:
+				return
+			case <-ticker.C:
+				s.cleanupExpired()
+			}
+		}
+	}()
 }
 
 // StopGC 停止后台 Goroutine
 func (s *MemoryStore) StopGC() {
-	s.gc.Stop()
+	select {
+	case s.stopGC <- struct{}{}:
+	default:
+	}
+}
+
+func (s *MemoryStore) cleanupExpired() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	for key, val := range s.data {
+		if val != nil && val.ExpireAt != nil && now.After(*val.ExpireAt) {
+			delete(s.data, key)
+		}
+	}
 }
 
 // SetMaxMemory 设置最大内存限制
@@ -188,9 +213,4 @@ func (s *MemoryStore) SetEvictionPolicy(policy EvictionPolicy) {
 // GetEvictionPolicy 获取淘汰策略名称
 func (s *MemoryStore) GetEvictionPolicy() string {
 	return s.evictor.GetEvictionPolicy()
-}
-
-// MemoryUsage 估算当前内存使用（字节）
-func (s *MemoryStore) MemoryUsage() int64 {
-	return s.evictor.estimateUsage()
 }

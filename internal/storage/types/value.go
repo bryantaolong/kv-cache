@@ -17,7 +17,8 @@ const (
 
 // Value 是存储的值
 type Value struct {
-	Type     DataType
-	Data     interface{}
-	ExpireAt *time.Time
+	Type        DataType
+	Data        interface{}
+	ExpireAt    *time.Time
+	AccessedAt  time.Time
 }

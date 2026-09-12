@@ -21,15 +21,13 @@ const (
 // Evictor 淘汰器
 type Evictor struct {
 	mu             sync.RWMutex
-	maxMemory      int64                          // 最大内存限制（字节）
-	evictionPolicy EvictionPolicy                 // 淘汰策略
-	data           func() map[string]*types.Value // 获取数据的回调
+	maxMemory      int64          // 最大内存限制（字节）
+	evictionPolicy EvictionPolicy // 淘汰策略
 }
 
 // NewEvictor 创建淘汰器
-func NewEvictor(dataFunc func() map[string]*types.Value) *Evictor {
+func NewEvictor() *Evictor {
 	return &Evictor{
-		data:           dataFunc,
 		evictionPolicy: EvictLRU, // 默认 LRU
 	}
 }
@@ -76,38 +74,81 @@ func (e *Evictor) GetEvictionPolicy() string {
 	}
 }
 
-// EvictIfNeeded 检查是否需要淘汰数据
-func (e *Evictor) EvictIfNeeded() {
+// SelectEvictionTargets 估算内存并在超过阈值时返回应被淘汰的 key 列表（不修改原 map）。
+func (e *Evictor) SelectEvictionTargets(data map[string]*types.Value) []string {
 	e.mu.RLock()
 	maxMemory := e.maxMemory
 	policy := e.evictionPolicy
 	e.mu.RUnlock()
 
-	if maxMemory <= 0 || policy == EvictNoEviction {
-		return
+	if maxMemory <= 0 || policy == EvictNoEviction || len(data) == 0 {
+		return nil
 	}
 
-	// 估算当前使用
-	currentUsage := e.estimateUsage()
+	// 在本地副本上做批次选择，避免同一轮重复选中同一个 key。
+	snapshot := make(map[string]*types.Value, len(data))
+	for k, v := range data {
+		snapshot[k] = v
+	}
+
+	currentUsage := e.estimateUsageOn(snapshot)
 	if currentUsage < maxMemory {
-		return
+		return nil
 	}
 
-	// 需要淘汰到 75% 以下
 	targetUsage := maxMemory * 75 / 100
-
+	var targets []string
 	for currentUsage > targetUsage {
-		evicted := e.doEvict()
-		if !evicted {
+		var target string
+		switch policy {
+		case EvictLRU:
+			target = e.selectLRU(snapshot)
+		case EvictRandom:
+			target = e.selectRandom(snapshot)
+		}
+		if target == "" {
 			break
 		}
-		currentUsage = e.estimateUsage()
+		targets = append(targets, target)
+		delete(snapshot, target)
+		if val, ok := data[target]; ok && val != nil {
+			currentUsage -= e.estimateValueUsage(val)
+		}
 	}
+	return targets
 }
 
-// estimateUsage 估算内存使用
-func (e *Evictor) estimateUsage() int64 {
-	data := e.data()
+// estimateValueUsage 估算单个 Value 的内存占用。
+func (e *Evictor) estimateValueUsage(val *types.Value) int64 {
+	if val == nil {
+		return 0
+	}
+	var n int64
+	switch v := val.Data.(type) {
+	case string:
+		n += int64(len(v))
+	case map[string]string:
+		for field, value := range v {
+			n += int64(len(field) + len(value))
+		}
+	case []string:
+		for _, item := range v {
+			n += int64(len(item))
+		}
+	case types.Set:
+		for m := range v {
+			n += int64(len(m))
+		}
+	case *types.ZSet:
+		for _, member := range v.Members() {
+			n += int64(len(member))
+		}
+	}
+	return n
+}
+
+// estimateUsageOn 根据传入快照估算内存使用
+func (e *Evictor) estimateUsageOn(data map[string]*types.Value) int64 {
 	if data == nil {
 		return 0
 	}
@@ -142,64 +183,40 @@ func (e *Evictor) estimateUsage() int64 {
 	return total
 }
 
-// doEvict 执行一次淘汰
-func (e *Evictor) doEvict() bool {
-	data := e.data()
-	if len(data) == 0 {
-		return false
+// selectLRU 选择最久未访问的 key
+func (e *Evictor) selectLRU(data map[string]*types.Value) string {
+	var (
+		oldestKey string
+		oldest    time.Time
+		found     bool
+	)
+	for key, val := range data {
+		if val == nil {
+			continue
+		}
+		if !found || val.AccessedAt.Before(oldest) {
+			oldestKey = key
+			oldest = val.AccessedAt
+			found = true
+		}
 	}
-
-	// 先清理过期键
-	e.cleanup(data)
-
-	// 如果清理后数据为空，返回 false
-	if len(data) == 0 {
-		return false
+	if !found {
+		return ""
 	}
+	return oldestKey
+}
 
-	e.mu.RLock()
-	policy := e.evictionPolicy
-	e.mu.RUnlock()
-
-	var candidates []string
-	switch policy {
-	case EvictLRU:
-		// 收集所有键（清理后剩余的键）
-		for key := range data {
-			candidates = append(candidates, key)
-		}
-
-		if len(candidates) == 0 {
-			return false
-		}
-
-		// 简化：随机从候选中选
-		if len(candidates) > 3 {
-			candidates = candidates[:3]
-		}
-		idx := rand.Intn(len(candidates))
-		key := candidates[idx]
-		delete(data, key)
-
-	case EvictRandom:
-		// 收集所有键
-		for key := range data {
-			candidates = append(candidates, key)
-		}
-
-		if len(candidates) == 0 {
-			return false
-		}
-
-		idx := rand.Intn(len(candidates))
-		key := candidates[idx]
-		delete(data, key)
-
-	default:
-		return false
+// selectRandom 随机选择一个 key
+func (e *Evictor) selectRandom(data map[string]*types.Value) string {
+	candidates := make([]string, 0, len(data))
+	for key := range data {
+		candidates = append(candidates, key)
 	}
-
-	return true
+	if len(candidates) == 0 {
+		return ""
+	}
+	idx := rand.Intn(len(candidates))
+	return candidates[idx]
 }
 
 // cleanup 清理过期键
