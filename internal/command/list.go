@@ -3,7 +3,6 @@ package command
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 func (e *Executor) handleLPush(parts []string) (*Result, error) {
@@ -14,7 +13,7 @@ func (e *Executor) handleLPush(parts []string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.appendPersist("LPUSH " + parts[1] + " " + strings.Join(parts[2:], " ")); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	if !e.loading {
@@ -31,7 +30,7 @@ func (e *Executor) handleRPush(parts []string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.appendPersist("RPUSH " + parts[1] + " " + strings.Join(parts[2:], " ")); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	if !e.loading {

@@ -17,7 +17,7 @@ func (e *Executor) handleZAdd(parts []string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.appendPersist(fmt.Sprintf("ZADD %s %f %s", parts[1], score, parts[3])); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	if !e.loading {

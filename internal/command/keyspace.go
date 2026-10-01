@@ -17,7 +17,7 @@ func (e *Executor) handleDel(parts []string) (*Result, error) {
 			count++
 		}
 	}
-	if err := e.appendPersist("DEL " + strings.Join(parts[1:], " ")); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	return &Result{Lines: []string{fmt.Sprintf("(integer) %d", count)}}, nil
@@ -49,7 +49,7 @@ func (e *Executor) handleKeys(parts []string) (*Result, error) {
 
 func (e *Executor) handleFlushDB() (*Result, error) {
 	e.store.Flush()
-	if err := e.appendPersist("FLUSHDB"); err != nil {
+	if err := e.appendPersist([]string{"FLUSHDB"}); err != nil {
 		return nil, err
 	}
 	return &Result{Lines: []string{"OK"}}, nil
@@ -64,7 +64,7 @@ func (e *Executor) handleExpire(parts []string) (*Result, error) {
 		return nil, fmt.Errorf("invalid TTL")
 	}
 	ok := e.store.Expire(parts[1], time.Duration(sec)*time.Second)
-	if err := e.appendPersist(fmt.Sprintf("EXPIRE %s %s", parts[1], parts[2])); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	if ok {

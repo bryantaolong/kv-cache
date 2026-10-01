@@ -10,7 +10,7 @@ func (e *Executor) handleHSet(parts []string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.appendPersist(fmt.Sprintf("HSET %s %s %s", parts[1], parts[2], parts[3])); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	if !e.loading {

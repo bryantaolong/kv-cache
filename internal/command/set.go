@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"strings"
 )
 
 func (e *Executor) handleSAdd(parts []string) (*Result, error) {
@@ -13,7 +12,7 @@ func (e *Executor) handleSAdd(parts []string) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := e.appendPersist("SADD " + parts[1] + " " + strings.Join(parts[2:], " ")); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	if !e.loading {

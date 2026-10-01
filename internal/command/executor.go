@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -151,35 +152,37 @@ func (e *Executor) Export() []string {
 
 		switch v := val.Data.(type) {
 		case string:
-			cmd := fmt.Sprintf("SET %s %s", key, v)
+			args := []string{"SET", key, v}
 			if val.ExpireAt != nil {
 				ttl := int(time.Until(*val.ExpireAt).Seconds())
 				if ttl > 0 {
-					cmd += fmt.Sprintf(" %d", ttl)
+					args = append(args, strconv.Itoa(ttl))
 				}
 			}
-			commands = append(commands, cmd)
+			commands = append(commands, SerializeArgs(args))
 
 		case map[string]string: // Hash
 			for field, value := range v {
-				commands = append(commands, fmt.Sprintf("HSET %s %s %s", key, field, value))
+				commands = append(commands, SerializeArgs([]string{"HSET", key, field, value}))
 			}
 
 		case []string: // List
 			if len(v) > 0 {
-				commands = append(commands, fmt.Sprintf("RPUSH %s %s", key, strings.Join(v, " ")))
+				commands = append(commands, SerializeArgs(append([]string{"RPUSH", key}, v...)))
 			}
 
 		case types.Set: // Set
 			members := v.SMembers()
 			if len(members) > 0 {
-				commands = append(commands, fmt.Sprintf("SADD %s %s", key, strings.Join(members, " ")))
+				commands = append(commands, SerializeArgs(append([]string{"SADD", key}, members...)))
 			}
 
 		case *types.ZSet: // ZSet
 			members := v.ZRange(0, -1)
 			for _, m := range members {
-				commands = append(commands, fmt.Sprintf("ZADD %s %f %s", key, m.Score, m.Member))
+				commands = append(commands, SerializeArgs([]string{
+					"ZADD", key, strconv.FormatFloat(m.Score, 'f', -1, 64), m.Member,
+				}))
 			}
 		}
 	}
@@ -187,9 +190,9 @@ func (e *Executor) Export() []string {
 	return commands
 }
 
-func (e *Executor) appendPersist(cmd string) error {
+func (e *Executor) appendPersist(parts []string) error {
 	if e.persist != nil && !e.loading {
-		return e.persist.Append(cmd)
+		return e.persist.Append(SerializeArgs(parts))
 	}
 	return nil
 }

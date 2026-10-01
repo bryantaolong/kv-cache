@@ -22,7 +22,7 @@ func (e *Executor) handleSet(parts []string) (*Result, error) {
 	if err := e.store.SetString(key, value, ttl); err != nil {
 		return nil, err
 	}
-	if err := e.appendPersist(fmt.Sprintf("SET %s %s", key, value)); err != nil {
+	if err := e.appendPersist(parts); err != nil {
 		return nil, err
 	}
 	return &Result{Lines: []string{"OK"}}, nil

@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -119,7 +118,7 @@ func loadData(executor *command.Executor, ps *persist.Persistence) {
 	executor.SetLoading(true)
 	defer executor.SetLoading(false)
 	if err := ps.Load(func(cmd string) error {
-		parts := strings.Fields(cmd)
+		parts := command.ParseArgs(cmd)
 		if len(parts) == 0 {
 			return nil
 		}
